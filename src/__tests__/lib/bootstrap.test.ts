@@ -22,7 +22,13 @@ describe("workspace bootstrap", () => {
       expect(result.createdDirs.length).toBeGreaterThan(0);
       expect(result.installedTemplates).toContain("workspace.env");
       expect(await Bun.file(join(templatesDir, "workspace.env")).text()).toContain("BRANCH_NAME");
-      expect(await Bun.file(join(templatesDir, "frontend-.env.local")).text()).toContain("REACT_APP_PORTLESS_PROXY_PORT");
+      const frontendEnv = await Bun.file(join(templatesDir, "frontend-.env.local")).text();
+      const managerEnv = await Bun.file(join(templatesDir, "manager-.env.local")).text();
+      const backendProps = await Bun.file(join(templatesDir, "backend-application-dev.properties")).text();
+      expect(frontendEnv).toContain("REACT_APP_PORTLESS_PROXY_PORT");
+      expect(frontendEnv).toContain("REACT_APP_API_URL=https://");
+      expect(managerEnv).toContain("VITE_API_URL=https://");
+      expect(backendProps).toContain("%dev.neurosteps.frontend.url=https://");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

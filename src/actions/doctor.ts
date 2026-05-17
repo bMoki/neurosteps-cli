@@ -150,6 +150,9 @@ export async function doctorAction(
               DB_PORT: String(env.DB_PORT),
               BACKEND_PORT: String(env.BACKEND_PORT),
               BRANCH_NAME: branch,
+              BRANCH_SLUG: env.BRANCH_SLUG,
+              PRODUCT_NAME,
+              PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
             },
           );
         checkFix("Regenerado application-dev.properties");

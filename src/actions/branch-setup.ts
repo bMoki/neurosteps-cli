@@ -131,8 +131,8 @@ function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchRunti
 
 function buildBranchUrls(aliases: BranchRuntime["aliases"]): BranchRuntime["urls"] {
   return {
-    backend: `http://${aliases.backend}.localhost:${PORTLESS_PROXY_PORT}/api`,
-    frontend: `http://${aliases.frontend}.localhost:${PORTLESS_PROXY_PORT}`,
-    manager: aliases.manager ? `http://${aliases.manager}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
+    backend: `https://${aliases.backend}.localhost:${PORTLESS_PROXY_PORT}/api`,
+    frontend: `https://${aliases.frontend}.localhost:${PORTLESS_PROXY_PORT}`,
+    manager: aliases.manager ? `https://${aliases.manager}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
   };
 }

@@ -180,6 +180,9 @@ export async function newAction(
     DB_PORT: String(ports.db),
     BACKEND_PORT: String(ports.backend),
     BRANCH_NAME: branch,
+    BRANCH_SLUG: branchSlug,
+    PRODUCT_NAME,
+    PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
   });
 
   await copyTemplate(join(WORKSPACE_DIR, "templates/frontend-.env.local"), join(frontendWt, ".env.local"), {
@@ -332,11 +335,11 @@ volumes:
     detail("Manager", `localhost:${ports.manager}`);
   }
   section("URLs");
-  detail("Frontend", `http://${branchSlug}.web.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
-  detail("Backend", `http://${branchSlug}.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/api`);
-  detail("Swagger", `http://${branchSlug}.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/swagger-ui`);
+  detail("Frontend", `https://${branchSlug}.web.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
+  detail("Backend", `https://${branchSlug}.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/api`);
+  detail("Swagger", `https://${branchSlug}.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/swagger-ui`);
   if (withManager) {
-    detail("Manager", `http://${branchSlug}.manager.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
+    detail("Manager", `https://${branchSlug}.manager.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
   }
   section("Próximos passos");
   hint(`  1. ns prepare ${branch}    # DB + aliases Portless`);

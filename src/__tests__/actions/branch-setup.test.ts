@@ -47,9 +47,9 @@ describe("setupBranchRuntime", () => {
       "portless:proxy",
       "portless:aliases",
     ]);
-    expect(runtime.urls.backend).toBe("http://feat-123.api.neurosteps.localhost:1355/api");
-    expect(runtime.urls.frontend).toBe("http://feat-123.web.neurosteps.localhost:1355");
-    expect(runtime.urls.manager).toBe("http://feat-123.manager.neurosteps.localhost:1355");
+    expect(runtime.urls.backend).toBe("https://feat-123.api.neurosteps.localhost:1355/api");
+    expect(runtime.urls.frontend).toBe("https://feat-123.web.neurosteps.localhost:1355");
+    expect(runtime.urls.manager).toBe("https://feat-123.manager.neurosteps.localhost:1355");
   });
 
   test("does not start proxy when it is already running", async () => {

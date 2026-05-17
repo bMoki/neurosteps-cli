@@ -33,6 +33,7 @@ quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:{{DB_PORT}}/app_database
 quarkus.datasource.username=postgres
 quarkus.datasource.password=docker
 workspace.branch.name={{BRANCH_NAME}}
+%dev.neurosteps.frontend.url=https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
 `,
   },
   "frontend-.env.local": {
@@ -40,8 +41,8 @@ workspace.branch.name={{BRANCH_NAME}}
 REACT_APP_PRODUCT_NAME={{PRODUCT_NAME}}
 REACT_APP_PORTLESS_PROXY_PORT={{PORTLESS_PROXY_PORT}}
 REACT_APP_FRONTEND_PORT={{FRONTEND_PORT}}
-REACT_APP_API_URL=http://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api
-REACT_APP_WEB_URL=http://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
+REACT_APP_API_URL=https://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api
+REACT_APP_WEB_URL=https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
 `,
   },
   "manager-.env.local": {
@@ -49,9 +50,9 @@ REACT_APP_WEB_URL=http://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLE
 VITE_BRANCH_NAME={{BRANCH_NAME}}
 VITE_PRODUCT_NAME={{PRODUCT_NAME}}
 VITE_PORTLESS_PROXY_PORT={{PORTLESS_PROXY_PORT}}
-VITE_API_URL=http://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api
-VITE_WEB_URL=http://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
-VITE_APP_URL=http://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
+VITE_API_URL=https://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api
+VITE_WEB_URL=https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
+VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
 `,
   },
   "vscode/settings.json": {
@@ -186,8 +187,8 @@ VITE_APP_URL=http://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLES
     <command value="start" />
     <node-interpreter value="project" />
     <envs>
-      <env name="REACT_APP_API_URL" value="http://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api" />
-      <env name="REACT_APP_WEB_URL" value="http://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}" />
+      <env name="REACT_APP_API_URL" value="https://{{BRANCH_SLUG}}.api.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}/api" />
+      <env name="REACT_APP_WEB_URL" value="https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}" />
       <env name="REACT_APP_FRONTEND_PORT" value="{{FRONTEND_PORT}}" />
       <env name="REACT_APP_BRANCH_NAME" value="{{BRANCH_NAME}}" />
       <env name="REACT_APP_PRODUCT_NAME" value="{{PRODUCT_NAME}}" />
