@@ -7,6 +7,7 @@ import { detail, emptyLine, heading, ok, spinner, info, warn } from "../lib/logg
 import { reloadEnv } from "../lib/env";
 import { getNextPort, isPortAvailable } from "../lib/ports";
 import { ensureWorkspaceBootstrap } from "../lib/bootstrap";
+import { assertInteractiveInput } from "../lib/prompt";
 
 function fileExistsSync(path: string): boolean {
   try {
@@ -84,6 +85,8 @@ async function promptForPort(
 }
 
 export async function initAction(opts: InitOptions = {}): Promise<void> {
+  assertInteractiveInput("configurar a CLI");
+
   // ─── Check existing config ───
   const fileVars = await readEnvFile();
   const shellVars = Object.fromEntries(

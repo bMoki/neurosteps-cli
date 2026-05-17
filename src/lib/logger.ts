@@ -1,18 +1,25 @@
 import chalk from "chalk";
 import ora, { type Ora } from "ora";
+import { shouldUseColor } from "./cli";
+
+type ColorFn = (msg: string) => string;
+
+function color(fn: ColorFn): ColorFn {
+  return (msg) => shouldUseColor() ? fn(msg) : msg;
+}
 
 export const colors = {
-  info: chalk.blue,
-  ok: chalk.green,
-  warn: chalk.yellow,
-  err: chalk.red,
-  muted: chalk.gray,
-  value: chalk.cyan,
-  bold: chalk.bold,
+  info: color(chalk.blue),
+  ok: color(chalk.green),
+  warn: color(chalk.yellow),
+  err: color(chalk.red),
+  muted: color(chalk.gray),
+  value: color(chalk.cyan),
+  bold: color(chalk.bold),
 };
 
 export function info(msg: string): void {
-  console.log(`${colors.info("i")} ${msg}`);
+  console.error(`${colors.info("i")} ${msg}`);
 }
 
 export function ok(msg: string): void {
@@ -20,7 +27,7 @@ export function ok(msg: string): void {
 }
 
 export function warn(msg: string): void {
-  console.log(`${colors.warn("⚠")} ${colors.warn(msg)}`);
+  console.error(`${colors.warn("⚠")} ${colors.warn(msg)}`);
 }
 
 export function error(msg: string): void {
@@ -28,7 +35,12 @@ export function error(msg: string): void {
 }
 
 export function spinner(text: string): Ora {
-  return ora({ text: colors.info(text), color: "blue" });
+  return ora({
+    text: colors.info(text),
+    color: "blue",
+    stream: process.stderr,
+    isEnabled: Boolean(process.stderr.isTTY),
+  });
 }
 
 export function heading(title: string): void {
@@ -48,7 +60,7 @@ export function detail(label: string, value: string | number): void {
 }
 
 export function hint(message: string): void {
-  console.log(colors.muted(message));
+  console.error(colors.muted(message));
 }
 
 export function emptyLine(): void {

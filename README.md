@@ -213,6 +213,14 @@ ns rm minha-branch --purge
 | Portless CLI | Proxy local e aliases por branch. |
 | Repos locais | Backend, frontend e manager são origem das worktrees. |
 
+### Opções globais
+
+| Opção | Uso |
+| --- | --- |
+| `--debug` | Mostra stack trace em erros inesperados. |
+| `--no-color` | Desativa cores na saída. |
+| `--no-input` | Desativa prompts interativos; comandos que precisam perguntar falham com instrução. |
+
 ### Comandos de setup e configuração
 
 | Comando | O que faz | Observação |

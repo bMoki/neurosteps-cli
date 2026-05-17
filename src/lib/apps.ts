@@ -1,6 +1,7 @@
 import { execSync } from "./shell";
 import { getSetting, readSettings, writeSettings } from "./settings";
 import { select, input } from "@inquirer/prompts";
+import { assertInteractiveInput } from "./prompt";
 
 export interface DetectedApp {
   key: string;
@@ -114,6 +115,8 @@ export async function resolveDatabaseApp(): Promise<string> {
 }
 
 export async function promptForApp(apps: DetectedApp[]): Promise<string> {
+  assertInteractiveInput("escolher um app");
+
   const choices = apps.map((a) => ({ name: a.name, value: a.key }));
   choices.push({ name: "Outro (inserir manualmente)", value: "__manual__" });
 
