@@ -1,0 +1,26 @@
+{
+  "name": "ns-cli",
+  "version": "1.1.0",
+  "description": "NeuroSteps Workspace CLI",
+  "main": "src/index.ts",
+  "bin": {
+    "ns": "./dist/ns"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build --compile src/index.ts --outfile dist/ns",
+    "test": "bun test --preload ./src/__tests__/env-setup.ts",
+    "install-global": "$HOME/.bun/bin/bun build --compile src/index.ts --outfile dist/ns && mkdir -p $HOME/.local/bin && cp dist/ns $HOME/.local/bin/ns && $HOME/.local/bin/ns completion install"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^8.4.2",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "ora": "^9.4.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.9.3"
+  }
+}
