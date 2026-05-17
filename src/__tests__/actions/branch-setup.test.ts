@@ -36,7 +36,10 @@ describe("setupBranchRuntime", () => {
       join(WORKTREES_DIR, "feat-123", "docker-compose.yml"),
       "ns-feat-123",
     );
-    expect(deps.waitPg).toHaveBeenCalledWith("myapp-psql-feat-123");
+    expect(deps.waitPg).toHaveBeenCalledWith("myapp-psql-feat-123", {
+      user: "postgres",
+      database: "app_database",
+    });
     expect(deps.proxyStart).toHaveBeenCalled();
     expect(deps.regAlias).toHaveBeenCalledWith("feat-123.api.neurosteps", 8084);
     expect(deps.regAlias).toHaveBeenCalledWith("feat-123.web.neurosteps", 3015);

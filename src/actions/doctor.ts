@@ -7,8 +7,6 @@ import {
   PORTLESS_PROXY_PORT,
   BACKEND_MODULE,
   SEED_VOLUME,
-  DB_USER,
-  DB_NAME,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
 import { dockerVolumeExists, dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
@@ -153,6 +151,9 @@ export async function doctorAction(
               BRANCH_SLUG: env.BRANCH_SLUG,
               PRODUCT_NAME,
               PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
+              DB_USER: env.DB_USER,
+              DB_PASSWORD: env.DB_PASSWORD,
+              DB_NAME: env.DB_NAME,
             },
           );
         checkFix("Regenerado application-dev.properties");
@@ -314,7 +315,7 @@ export async function doctorAction(
       checkPass(`Container rodando: ${env.DB_CONTAINER}`);
       const readyResult = await withSpinner("Testando resposta do PostgreSQL", () =>
         shell(
-          ["docker", "exec", env.DB_CONTAINER, "pg_isready", "-U", DB_USER, "-d", DB_NAME],
+          ["docker", "exec", env.DB_CONTAINER, "pg_isready", "-U", env.DB_USER, "-d", env.DB_NAME],
           { silent: true },
         ),
       );

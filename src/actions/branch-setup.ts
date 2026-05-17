@@ -94,7 +94,7 @@ export async function setupBranchRuntime(
     await composeUp(composeFile, env.COMPOSE_PROJECT);
 
     options.onStep?.("database:wait");
-    await waitPg(env.DB_CONTAINER);
+    await waitPg(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
   }
 
   if (options.ensurePortlessProxy && !proxyRunning()) {

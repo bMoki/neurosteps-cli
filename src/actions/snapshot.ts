@@ -190,7 +190,7 @@ export async function snapshotAction(
 
   s.text = "Reiniciando PostgreSQL...";
   await composeUp(composeFile, env.COMPOSE_PROJECT);
-  await waitPg(env.DB_CONTAINER);
+  await waitPg(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
 
   s.succeed(`Snapshot '${snapshotName}' criado para ${branch}`);
   emptyLine();
@@ -240,7 +240,7 @@ export async function restoreAction(
 
     s.text = "Reiniciando PostgreSQL...";
     await composeUp(composeFile, env.COMPOSE_PROJECT);
-    await waitPg(env.DB_CONTAINER);
+    await waitPg(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
 
     s.succeed(`Snapshot '${snapshot.name}' restaurado em ${branch}`);
     emptyLine();

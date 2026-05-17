@@ -16,7 +16,7 @@ export async function dbOnlyAction(branch: string): Promise<void> {
   const composeFile = join(wtDir, "docker-compose.yml");
 
   await dockerComposeUp(composeFile, env.COMPOSE_PROJECT);
-  await waitForPostgres(env.DB_CONTAINER);
+  await waitForPostgres(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
 
   s.succeed(`PostgreSQL pronto em localhost:${env.DB_PORT}`);
 }

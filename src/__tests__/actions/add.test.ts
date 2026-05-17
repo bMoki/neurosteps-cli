@@ -28,7 +28,7 @@ describe("addManagerAction", () => {
     allocateManagerPort: mock(() => 3020),
     shell: mock((command: string[]) => Promise.resolve(createShellResult(command))),
     exists: mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git")),
-    ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], preservedTemplates: [] })),
+    ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], updatedTemplates: [], preservedTemplates: [] })),
     copyTpl: mock(() => Promise.resolve()),
     readText: mock(() => Promise.resolve('BRANCH_NAME="NS-927"\nBRANCH_SLUG="ns-927"\n')),
     writeText: mock(() => Promise.resolve()),

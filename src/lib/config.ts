@@ -34,10 +34,32 @@ export {
 
 export type { WorkspaceEnv };
 
+type WorkspaceDbSettings = Pick<WorkspaceEnv, "DB_USER" | "DB_PASSWORD" | "DB_NAME">;
+
+function parseComposeEnv(content: string, key: string): string | undefined {
+  const match = content.match(new RegExp(`^\\s*-\\s*${key}=(.+)$`, "m"));
+  return match?.[1]?.trim().replace(/^['"]|['"]$/g, "") || undefined;
+}
+
+async function readDockerComposeDbSettings(branch: string): Promise<Partial<WorkspaceDbSettings>> {
+  try {
+    const composePath = join(WORKTREES_DIR, branch, "docker-compose.yml");
+    const content = await Bun.file(composePath).text();
+    return {
+      DB_USER: parseComposeEnv(content, "POSTGRESQL_USERNAME"),
+      DB_PASSWORD: parseComposeEnv(content, "POSTGRESQL_PASSWORD"),
+      DB_NAME: parseComposeEnv(content, "POSTGRESQL_DATABASE"),
+    };
+  } catch {
+    return {};
+  }
+}
+
 export async function readWorkspaceEnv(branch: string): Promise<WorkspaceEnv | null> {
   const envPath = join(WORKTREES_DIR, branch, ".workspace.env");
   try {
     const content = await Bun.file(envPath).text();
+    const composeDb = await readDockerComposeDbSettings(branch);
     const parse = (key: string) => {
       const match = content.match(new RegExp(`^${key}="(.+)"`, "m"));
       return match?.[1] ?? "";
@@ -53,6 +75,9 @@ export async function readWorkspaceEnv(branch: string): Promise<WorkspaceEnv | n
       MANAGER_PORT: parse("MANAGER_PORT") || undefined,
       DB_VOLUME: parse("DB_VOLUME"),
       DB_CONTAINER: parse("DB_CONTAINER"),
+      DB_USER: parse("DB_USER") || composeDb.DB_USER || undefined,
+      DB_PASSWORD: parse("DB_PASSWORD") || composeDb.DB_PASSWORD || undefined,
+      DB_NAME: parse("DB_NAME") || composeDb.DB_NAME || undefined,
       COMPOSE_PROJECT: parse("COMPOSE_PROJECT"),
     };
 

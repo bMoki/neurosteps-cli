@@ -1,6 +1,11 @@
 import { exec, execChecked } from "./shell";
 import { DB_USER, DB_NAME } from "./config";
 
+export interface PostgresConnectionOptions {
+  user?: string;
+  database?: string;
+}
+
 export async function dockerComposeUp(
   composeFile: string,
   project: string,
@@ -71,19 +76,26 @@ export async function dockerExec(
 
 export async function isPostgresReady(
   container: string,
+  options: PostgresConnectionOptions = {},
 ): Promise<boolean> {
+  const user = options.user ?? DB_USER;
+  const database = options.database ?? DB_NAME;
   const { exitCode } = await dockerExec(container, [
-    "pg_isready", "-U", DB_USER, "-d", DB_NAME,
+    "pg_isready", "-U", user, "-d", database,
   ]);
   return exitCode === 0;
 }
 
 export async function waitForPostgres(
   container: string,
-  retries = 30,
+  retriesOrOptions: number | PostgresConnectionOptions = 30,
+  options: PostgresConnectionOptions = {},
 ): Promise<void> {
+  const retries = typeof retriesOrOptions === "number" ? retriesOrOptions : 30;
+  const connectionOptions = typeof retriesOrOptions === "number" ? options : retriesOrOptions;
+
   for (let i = 0; i < retries; i++) {
-    if (await isPostgresReady(container)) {
+    if (await isPostgresReady(container, connectionOptions)) {
       return;
     }
     await new Promise((r) => setTimeout(r, 1000));

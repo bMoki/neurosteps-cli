@@ -31,6 +31,8 @@ export async function startAction(branch: string): Promise<void> {
   await spawnTerminal(backendDir, {
     QUARKUS_HTTP_PORT: String(runtime.env.BACKEND_PORT),
     QUARKUS_DATASOURCE_JDBC_URL: `jdbc:postgresql://localhost:${runtime.env.DB_PORT}/${runtime.env.DB_NAME}`,
+    QUARKUS_DATASOURCE_USERNAME: runtime.env.DB_USER,
+    QUARKUS_DATASOURCE_PASSWORD: runtime.env.DB_PASSWORD,
     QUARKUS_PROFILE: "dev",
   }, `mvn -pl ${BACKEND_MODULE}-core quarkus:dev`);
 

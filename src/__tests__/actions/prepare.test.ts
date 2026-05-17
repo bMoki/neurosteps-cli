@@ -20,7 +20,10 @@ describe("prepareAction", () => {
 
     expect(mocks.readEnv).toHaveBeenCalledWith("feat-123");
     expect(mocks.composeUp).toHaveBeenCalled();
-    expect(mocks.waitPg).toHaveBeenCalledWith("myapp-psql-feat-123");
+    expect(mocks.waitPg).toHaveBeenCalledWith("myapp-psql-feat-123", {
+      user: "postgres",
+      database: "app_database",
+    });
     expect(mocks.proxyStart).toHaveBeenCalled();
     expect(mocks.regAlias).toHaveBeenCalledWith("feat-123.api.neurosteps", 8084);
     expect(mocks.regAlias).toHaveBeenCalledWith("feat-123.web.neurosteps", 3015);

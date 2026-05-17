@@ -168,6 +168,9 @@ export async function newAction(
     MANAGER_PORT: ports.manager ? String(ports.manager) : "",
     DB_VOLUME: dbVolume,
     DB_CONTAINER: dbContainer,
+    DB_USER,
+    DB_PASSWORD,
+    DB_NAME,
     COMPOSE_PROJECT: composeProject,
     CREATED_AT: new Date().toISOString(),
     SEEDED_FROM: baseBranch,
@@ -183,6 +186,9 @@ export async function newAction(
     BRANCH_SLUG: branchSlug,
     PRODUCT_NAME,
     PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
+    DB_USER,
+    DB_PASSWORD,
+    DB_NAME,
   });
 
   await copyTemplate(join(WORKSPACE_DIR, "templates/frontend-.env.local"), join(frontendWt, ".env.local"), {
@@ -279,6 +285,7 @@ volumes:
   await copyTemplate(join(WORKSPACE_DIR, "templates/idea/dataSources.xml"), join(ideaDir, "dataSources.xml"), {
     BRANCH_NAME: branch,
     DB_PORT: String(ports.db),
+    DB_NAME,
     UUID: dsUuid,
   });
 
@@ -301,6 +308,9 @@ volumes:
         BACKEND_MODULE,
         PRODUCT_NAME,
         PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
+        DB_USER,
+        DB_PASSWORD,
+        DB_NAME,
       },
     );
   }

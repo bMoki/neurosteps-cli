@@ -22,6 +22,9 @@ FRONTEND_PORT="{{FRONTEND_PORT}}"
 MANAGER_PORT="{{MANAGER_PORT}}"
 DB_VOLUME="{{DB_VOLUME}}"
 DB_CONTAINER="{{DB_CONTAINER}}"
+DB_USER="{{DB_USER}}"
+DB_PASSWORD="{{DB_PASSWORD}}"
+DB_NAME="{{DB_NAME}}"
 COMPOSE_PROJECT="{{COMPOSE_PROJECT}}"
 CREATED_AT="{{CREATED_AT}}"
 SEEDED_FROM="{{SEEDED_FROM}}"
@@ -29,9 +32,9 @@ SEEDED_FROM="{{SEEDED_FROM}}"
   },
   "backend-application-dev.properties": {
     content: `quarkus.http.port={{BACKEND_PORT}}
-quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:{{DB_PORT}}/app_database
-quarkus.datasource.username=postgres
-quarkus.datasource.password=docker
+quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:{{DB_PORT}}/{{DB_NAME}}
+quarkus.datasource.username={{DB_USER}}
+quarkus.datasource.password={{DB_PASSWORD}}
 workspace.branch.name={{BRANCH_NAME}}
 %dev.neurosteps.frontend.url=https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
 `,
@@ -111,7 +114,7 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
     content: `<project version="4">
   <component name="DataSourceManagerImpl">
     <data-source source="LOCAL" name="{{BRANCH_NAME}}" uuid="{{UUID}}">
-      <jdbc-url>jdbc:postgresql://localhost:{{DB_PORT}}/app_database</jdbc-url>
+      <jdbc-url>jdbc:postgresql://localhost:{{DB_PORT}}/{{DB_NAME}}</jdbc-url>
     </data-source>
   </component>
 </project>
@@ -154,7 +157,7 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
   "runConfigurations/Backend.xml": {
     content: `<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend {{BRANCH_NAME}}" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/app_database QUARKUS_PROFILE=dev mvn -pl {{BACKEND_MODULE}}-core quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
+    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/{{DB_NAME}} QUARKUS_DATASOURCE_USERNAME={{DB_USER}} QUARKUS_DATASOURCE_PASSWORD={{DB_PASSWORD}} QUARKUS_PROFILE=dev mvn -pl {{BACKEND_MODULE}}-core quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
@@ -202,6 +205,50 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
   },
 };
 
+const LEGACY_BUNDLED_TEMPLATES: Record<string, string[]> = {
+  "workspace.env": [`BRANCH_NAME="{{BRANCH_NAME}}"
+BRANCH_SLUG="{{BRANCH_SLUG}}"
+DB_PORT="{{DB_PORT}}"
+BACKEND_PORT="{{BACKEND_PORT}}"
+BACKEND_DEBUG_PORT="{{BACKEND_DEBUG_PORT}}"
+FRONTEND_PORT="{{FRONTEND_PORT}}"
+MANAGER_PORT="{{MANAGER_PORT}}"
+DB_VOLUME="{{DB_VOLUME}}"
+DB_CONTAINER="{{DB_CONTAINER}}"
+COMPOSE_PROJECT="{{COMPOSE_PROJECT}}"
+CREATED_AT="{{CREATED_AT}}"
+SEEDED_FROM="{{SEEDED_FROM}}"
+`],
+  "backend-application-dev.properties": [`quarkus.http.port={{BACKEND_PORT}}
+quarkus.datasource.jdbc.url=jdbc:postgresql://localhost:{{DB_PORT}}/app_database
+quarkus.datasource.username=postgres
+quarkus.datasource.password=docker
+workspace.branch.name={{BRANCH_NAME}}
+%dev.neurosteps.frontend.url=https://{{BRANCH_SLUG}}.web.{{PRODUCT_NAME}}.localhost:{{PORTLESS_PROXY_PORT}}
+`],
+  "idea/dataSources.xml": [`<project version="4">
+  <component name="DataSourceManagerImpl">
+    <data-source source="LOCAL" name="{{BRANCH_NAME}}" uuid="{{UUID}}">
+      <jdbc-url>jdbc:postgresql://localhost:{{DB_PORT}}/app_database</jdbc-url>
+    </data-source>
+  </component>
+</project>
+`],
+  "runConfigurations/Backend.xml": [`<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Backend {{BRANCH_NAME}}" type="ShConfigurationType">
+    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/app_database QUARKUS_PROFILE=dev mvn -pl {{BACKEND_MODULE}}-core quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
+    <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
+    <option name="SCRIPT_PATH" value="" />
+    <option name="SCRIPT_OPTIONS" value="" />
+    <option name="INDEPENDENT_SCRIPT_WORKING_DIRECTORY" value="true" />
+    <option name="SCRIPT_WORKING_DIRECTORY" value="$PROJECT_DIR$/backend" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>
+`],
+};
+
 export interface BootstrapPaths {
   workspaceDir?: string;
   templatesDir?: string;
@@ -213,6 +260,7 @@ export interface BootstrapPaths {
 export interface BootstrapResult {
   createdDirs: string[];
   installedTemplates: string[];
+  updatedTemplates: string[];
   preservedTemplates: string[];
 }
 
@@ -242,12 +290,23 @@ function ensureDir(dir: string, createdDirs: string[]): void {
   mkdirSync(dir, { recursive: true });
 }
 
+async function tryReadFileText(filePath: string): Promise<string | null> {
+  try {
+    const file = Bun.file(filePath) as { text?: () => Promise<string> };
+    if (typeof file.text !== "function") return null;
+    return await file.text();
+  } catch {
+    return null;
+  }
+}
+
 export async function ensureWorkspaceBootstrap(
   paths: BootstrapPaths = {},
 ): Promise<BootstrapResult> {
   const resolved = resolvePaths(paths);
   const createdDirs: string[] = [];
   const installedTemplates: string[] = [];
+  const updatedTemplates: string[] = [];
   const preservedTemplates: string[] = [];
 
   for (const dir of [
@@ -268,6 +327,14 @@ export async function ensureWorkspaceBootstrap(
     ensureDir(dirname(filePath), createdDirs);
 
     if (existsSync(filePath)) {
+      const legacyContents = LEGACY_BUNDLED_TEMPLATES[relativePath] ?? [];
+      const existingContent = await tryReadFileText(filePath);
+      if (existingContent !== null && legacyContents.includes(existingContent)) {
+        await Bun.write(filePath, spec.content);
+        updatedTemplates.push(relativePath);
+        continue;
+      }
+
       preservedTemplates.push(relativePath);
       continue;
     }
@@ -276,7 +343,7 @@ export async function ensureWorkspaceBootstrap(
     installedTemplates.push(relativePath);
   }
 
-  return { createdDirs, installedTemplates, preservedTemplates };
+  return { createdDirs, installedTemplates, updatedTemplates, preservedTemplates };
 }
 
 export async function ensureBundledTemplate(relativePath: string): Promise<string> {

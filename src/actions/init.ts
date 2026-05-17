@@ -366,6 +366,7 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
   detail("Worktrees", worktreesDir);
   detail("Novos diretórios", bootstrap.createdDirs.length);
   detail("Templates instalados", bootstrap.installedTemplates.length);
+  detail("Templates atualizados", bootstrap.updatedTemplates.length);
   detail("Templates preservados", bootstrap.preservedTemplates.length);
   emptyLine();
   heading("Próximos passos");

@@ -36,7 +36,7 @@ export async function clearDbAction(branch: string): Promise<void> {
   s.text = "Iniciando PostgreSQL limpo...";
   const { dockerComposeUp, waitForPostgres } = await import("../lib/docker");
   await dockerComposeUp(composeFile, env.COMPOSE_PROJECT);
-  await waitForPostgres(env.DB_CONTAINER);
+  await waitForPostgres(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
 
   s.succeed(`Banco de ${branch} resetado e reseedado`);
 }
