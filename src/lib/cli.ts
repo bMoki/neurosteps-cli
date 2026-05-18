@@ -1,6 +1,6 @@
 import { Command } from "commander";
 
-const GLOBAL_BOOLEAN_FLAGS = new Set(["--debug", "--no-color", "--no-input"]);
+const GLOBAL_BOOLEAN_FLAGS = new Set(["--debug", "-d", "--no-color", "--no-input", "--quiet", "-q"]);
 
 export function isGlobalBooleanFlag(arg: string): boolean {
   return GLOBAL_BOOLEAN_FLAGS.has(arg);
@@ -8,9 +8,10 @@ export function isGlobalBooleanFlag(arg: string): boolean {
 
 export function addGlobalCliOptions(command: Command): Command {
   command
-    .option("--debug", "mostra detalhes de erros inesperados")
+    .option("-d, --debug", "mostra detalhes de erros inesperados")
     .option("--no-color", "desativa cores na saída")
-    .option("--no-input", "desativa prompts interativos");
+    .option("--no-input", "desativa prompts interativos")
+    .option("-q, --quiet", "suprime mensagens informativas (mantém ok/warn/error)");
 
   for (const child of command.commands) {
     addGlobalCliOptions(child);
@@ -43,6 +44,14 @@ export function isNoInputEnabled(): boolean {
   return Boolean(
     process.argv.includes("--no-input")
       || process.env.NS_NO_INPUT,
+  );
+}
+
+export function isQuietEnabled(): boolean {
+  return Boolean(
+    process.argv.includes("--quiet")
+      || process.argv.includes("-q")
+      || process.env.NS_QUIET,
   );
 }
 

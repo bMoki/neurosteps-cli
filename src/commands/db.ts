@@ -8,10 +8,7 @@ import {
   listSnapshotsAction,
   rmSnapshotAction,
 } from "../actions/snapshot";
-import { WORKTREES_DIR } from "../lib/config";
-import { error } from "../lib/logger";
-import { execChecked } from "../lib/shell";
-import { resolveDatabaseApp, ensureDatabaseAppConfigured } from "../lib/apps";
+import { openDbAction } from "../actions/open-db";
 
 export function dbCommand(): Command {
   const cmd = new Command("db")
@@ -52,21 +49,22 @@ export function dbCommand(): Command {
         .description("Restaura banco a partir de snapshot")
         .argument("<branch>", "nome da branch")
         .argument("<name>", "nome do snapshot")
-        .option("--force", "pula confirmação")
+        .option("-f, --force", "pula confirmação")
         .action((branch, name, opts) => restoreAction(branch, name, opts.force)),
     )
     .addCommand(
       new Command("snapshots")
         .description("Lista snapshots do banco")
         .argument("[branch]", "nome da branch")
-        .action(listSnapshotsAction),
+        .option("--json", "emite saída em JSON (stdout)")
+        .action((branch, opts) => listSnapshotsAction(branch, {}, opts.json)),
     )
     .addCommand(
       new Command("rm-snapshot")
         .description("Remove um snapshot")
         .argument("<branch>", "nome da branch")
         .argument("<name>", "nome do snapshot")
-        .option("--force", "pula confirmação")
+        .option("-f, --force", "pula confirmação")
         .action((branch, name, opts) => rmSnapshotAction(branch, name, opts.force)),
     )
     .addCommand(
@@ -74,34 +72,7 @@ export function dbCommand(): Command {
         .description("Abre o banco da branch no app de banco configurado")
         .argument("<branch>", "nome da branch")
         .option("--app <name>", "nome do app de banco para usar")
-        .action(async (branch, opts) => {
-          const wtDir = `${WORKTREES_DIR}/${branch}`;
-          const file = Bun.file(wtDir);
-          if (!(await file.exists())) {
-            error(`Branch não encontrada: ${branch}`);
-            process.exit(1);
-          }
-
-          let appKey: string;
-          if (opts.app) {
-            appKey = opts.app;
-          } else {
-            appKey = await ensureDatabaseAppConfigured();
-          }
-
-          const appPath = await resolveDatabaseApp().then(() => {
-            // resolveDatabaseApp retorna key, precisamos do path
-            // vamos abrir via nome do app no macOS
-            const displayNames: Record<string, string> = {
-              datagrip: "DataGrip",
-              tableplus: "TablePlus",
-              dbeaver: "DBeaver",
-            };
-            return displayNames[appKey] || appKey;
-          });
-
-          await execChecked(["open", "-a", appPath, wtDir], { silent: true }, `abrir banco no ${appPath} pelo macOS`);
-        }),
+        .action((branch, opts) => openDbAction(branch, opts.app)),
     );
 
   return cmd;

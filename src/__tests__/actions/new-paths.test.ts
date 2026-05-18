@@ -47,15 +47,13 @@ describe("newAction paths", () => {
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(path.includes(".git")),
     })) as any;
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
     try {
       await newAction("feat-123", "develop", false, mocks);
       expect(false).toBe(true);
     } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("não existe");
     } finally {
-      process.exit = originalExit;
       Bun.file = originalFile;
     }
   });
@@ -67,15 +65,13 @@ describe("newAction paths", () => {
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(path.includes(".git")),
     })) as any;
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
     try {
       await newAction("feat-123", "master", true, mocks);
       expect(false).toBe(true);
     } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("não existe");
     } finally {
-      process.exit = originalExit;
       Bun.file = originalFile;
     }
   });
@@ -143,15 +139,13 @@ describe("newAction paths", () => {
         path.includes("worktrees")
       ),
     })) as any;
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
     try {
       await newAction("feat-123", "master", false, mocks);
       expect(false).toBe(true);
     } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("já existe");
     } finally {
-      process.exit = originalExit;
       Bun.file = originalFile;
     }
   });

@@ -21,6 +21,16 @@ import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
 import { error } from "./lib/logger";
 
+process.on("SIGINT", () => {
+  process.stderr.write("\nInterrompido.\n");
+  process.exit(130);
+});
+
+process.on("SIGTERM", () => {
+  process.stderr.write("\nEncerrado.\n");
+  process.exit(143);
+});
+
 const program = configureCliProgram(new Command()
   .name("ns")
   .description("NeuroSteps Workspace CLI")
@@ -42,7 +52,25 @@ program
   .addCommand(dbCommand())
   .addCommand(workspaceCommand())
   .addCommand(configCommand())
-  .addCommand(completionCommand());
+  .addCommand(completionCommand())
+  .addCommand(
+    new Command("help")
+      .description("Exibe ajuda para um comando")
+      .argument("[command]", "nome do comando")
+      .action((cmdName: string | undefined) => {
+        if (!cmdName) {
+          program.outputHelp();
+          return;
+        }
+        const found = program.commands.find((c) => c.name() === cmdName);
+        if (found) {
+          found.outputHelp();
+        } else {
+          error(`Comando desconhecido: ${cmdName}`);
+          process.exitCode = 1;
+        }
+      }),
+  );
 
 addGlobalCliOptions(program);
 

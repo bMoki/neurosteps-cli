@@ -84,27 +84,27 @@ export async function newAction(
     [FRONTEND_REPO, "Frontend"],
   ] as const) {
     if (!(await pathExistsAsync(join(repo, ".git")))) {
-      s.fail(`Repositório ${name} não encontrado em ${repo}`);
-      process.exit(1);
+      s.stop();
+      throw new Error(`Repositório ${name} não encontrado em ${repo}`);
     }
   }
   if (withManager) {
     if (!(await pathExistsAsync(join(MANAGER_REPO, ".git")))) {
-      s.fail(`Repositório Manager não encontrado em ${MANAGER_REPO}`);
-      process.exit(1);
+      s.stop();
+      throw new Error(`Repositório Manager não encontrado em ${MANAGER_REPO}`);
     }
   }
 
   // Validate base branch
   for (const repo of [BACKEND_REPO, FRONTEND_REPO]) {
     if (!localExists(repo, baseBranch)) {
-      s.fail(`Branch base '${baseBranch}' não existe em ${repo}`);
-      process.exit(1);
+      s.stop();
+      throw new Error(`Branch base '${baseBranch}' não existe em ${repo}`);
     }
   }
   if (withManager && !localExists(MANAGER_REPO, baseBranch)) {
-    s.fail(`Branch base '${baseBranch}' não existe no manager`);
-    process.exit(1);
+    s.stop();
+    throw new Error(`Branch base '${baseBranch}' não existe no manager`);
   }
 
   await ensureWorkspaceBootstrap();
@@ -117,8 +117,8 @@ export async function newAction(
 
   // Check worktree doesn't exist
   if (await pathExistsAsync(join(WORKTREES_DIR, branch, ".workspace.env"))) {
-    s.fail(`Worktree já existe: ${WORKTREES_DIR}/${branch}`);
-    process.exit(1);
+    s.stop();
+    throw new Error(`Worktree já existe: ${WORKTREES_DIR}/${branch}`);
   }
 
   // Create branches + worktrees

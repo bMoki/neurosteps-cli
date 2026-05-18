@@ -2,8 +2,6 @@ import { describe, test, expect, mock } from "bun:test";
 import { newAction } from "../../actions/new";
 import { createShellResult } from "../setup";
 
-class ProcessExit extends Error {}
-
 describe("newAction", () => {
   const createMocks = () => ({
     branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(false)),
@@ -86,21 +84,19 @@ describe("newAction", () => {
   test("exits when manager repo not found", async () => {
     const mocks = createMocks();
     const originalFile = Bun.file;
+    // MANAGER_REPO = ~/Developer/neurosteps-manager (from env-setup.ts NS_MANAGER_REPO_NAME)
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(
-        !path.includes("myapp-manager") ||
-        path.includes("templates")
+        path.includes(".git") && !path.includes("neurosteps-manager")
       ),
     })) as any;
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
     try {
       await newAction("feat-123", "master", true, mocks);
       expect(false).toBe(true);
     } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("não encontrado");
     } finally {
-      process.exit = originalExit;
       Bun.file = originalFile;
     }
   });
@@ -108,18 +104,19 @@ describe("newAction", () => {
   test("exits when repo not found", async () => {
     const mocks = createMocks();
     const originalFile = Bun.file;
+    // BACKEND_REPO = ~/Developer/scalemed-backend (from env-setup.ts NS_BACKEND_REPO_NAME)
     Bun.file = mock((path: string) => ({
-      exists: () => Promise.resolve(!path.includes("mybackend-repo")),
+      exists: () => Promise.resolve(
+        path.includes(".git") && !path.includes("scalemed-backend")
+      ),
     })) as any;
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
     try {
       await newAction("feat-123", "master", false, mocks);
       expect(false).toBe(true);
     } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("não encontrado");
     } finally {
-      process.exit = originalExit;
       Bun.file = originalFile;
     }
   });

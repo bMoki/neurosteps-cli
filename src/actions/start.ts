@@ -1,6 +1,6 @@
 import { resolveBackendDir, resolveFrontendDir, resolveManagerDir, hasManager, PRODUCT_NAME, PORTLESS_PROXY_PORT, BACKEND_MODULE } from "../lib/config";
 import { spawnTerminal } from "../lib/shell";
-import { detail, emptyLine, spinner } from "../lib/logger";
+import { detail, emptyLine, hint, spinner } from "../lib/logger";
 import { BranchNotFoundError, setupBranchRuntime } from "./branch-setup";
 
 export async function startAction(branch: string): Promise<void> {
@@ -65,4 +65,6 @@ export async function startAction(branch: string): Promise<void> {
   if (runtime.urls.manager) {
     detail("Manager", runtime.urls.manager);
   }
+  emptyLine();
+  hint(`Próximo passo: ns status ${branch}  # ver status dos serviços`);
 }

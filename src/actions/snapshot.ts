@@ -256,9 +256,20 @@ export async function restoreAction(
 export async function listSnapshotsAction(
   branch?: string,
   deps: Partial<SnapshotDeps> = {},
+  asJson = false,
 ): Promise<void> {
   const defaulted = { ...defaultDeps, ...deps };
   const branches = branch ? [branch] : defaulted.listBranches().filter((name) => defaulted.pathExists(getSnapshotDir(name)));
+
+  if (asJson) {
+    const result: Record<string, { name: string; created_at: string; volume: string }[]> = {};
+    for (const branchName of branches) {
+      const snapshots = await listSnapshotMetas(branchName, defaulted);
+      result[branchName] = snapshots.map((s) => ({ name: s.name, created_at: s.created_at, volume: s.volume }));
+    }
+    process.stdout.write(JSON.stringify(branch ? (result[branch] ?? []) : result, null, 2) + "\n");
+    return;
+  }
 
   if (branches.length === 0) {
     info("Nenhum snapshot encontrado.");

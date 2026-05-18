@@ -77,8 +77,13 @@ export function configCommand(): Command {
     .addCommand(
       new Command("list")
         .description("Lista todas as configurações")
-        .action(async () => {
+        .option("--json", "emite saída em JSON (stdout)")
+        .action(async (opts) => {
           const settings = await readSettings();
+          if (opts.json) {
+            process.stdout.write(JSON.stringify(settings, null, 2) + "\n");
+            return;
+          }
           if (Object.keys(settings).length === 0) {
             console.log("Nenhuma configuração definida.");
             return;

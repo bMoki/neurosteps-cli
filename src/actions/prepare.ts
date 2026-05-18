@@ -1,4 +1,4 @@
-import { detail, emptyLine, spinner } from "../lib/logger";
+import { detail, emptyLine, hint, spinner } from "../lib/logger";
 import {
   BranchNotFoundError,
   type BranchSetupDeps,
@@ -37,4 +37,6 @@ export async function prepareAction(
   if (runtime.urls.manager) {
     detail("Manager", runtime.urls.manager);
   }
+  emptyLine();
+  hint(`Próximo passo: ns open ${branch}   # abrir no IDE`);
 }
