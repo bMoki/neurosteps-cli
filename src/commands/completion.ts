@@ -185,7 +185,9 @@ function __ns_needs_completion_shell
     return 0
   end
   if test (count $tokens) -eq 3
-    return 0
+    if not contains -- $tokens[3] ${completionShells}
+      return 0
+    end
   end
   return 1
 end
@@ -199,7 +201,9 @@ function __ns_needs_add_subcommand
     return 0
   end
   if test (count $tokens) -eq 3
-    return 0
+    if not contains -- $tokens[3] ${addSubs}
+      return 0
+    end
   end
   return 1
 end
@@ -227,7 +231,9 @@ function __ns_needs_db_subcommand
     return 0
   end
   if test (count $tokens) -eq 3
-    return 0
+    if not contains -- $tokens[3] ${dbSubs}
+      return 0
+    end
   end
   return 1
 end
@@ -353,7 +359,9 @@ function __ns_needs_workspace_subcommand
     return 0
   end
   if test (count $tokens) -eq 3
-    return 0
+    if not contains -- $tokens[3] ${wsSubs}
+      return 0
+    end
   end
   return 1
 end
@@ -367,7 +375,9 @@ function __ns_needs_workspace_template_subcommand
     return 0
   end
   if test (count $tokens) -eq 4
-    return 0
+    if not contains -- $tokens[4] ${wsTemplateSubs}
+      return 0
+    end
   end
   return 1
 end
@@ -398,7 +408,9 @@ function __ns_needs_config_subcommand
     return 0
   end
   if test (count $tokens) -eq 3
-    return 0
+    if not contains -- $tokens[3] ${cfgSubs}
+      return 0
+    end
   end
   return 1
 end

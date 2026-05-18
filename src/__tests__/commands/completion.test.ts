@@ -78,6 +78,26 @@ describe("completion fish", () => {
     expect(script).toContain('test -n "$tokens[4]" -a -d "/tmp/snapshots/$tokens[4]"');
     expect(script).not.toContain('contains -- $tokens[4] (__ns_branches)');
   });
+
+  test("db subcommand function stops suggesting when subcommand is complete", () => {
+    const script = renderFishCompletion(["FEAT-123"], "/tmp/worktrees");
+    expect(script).toMatch(/__ns_needs_db_subcommand[\s\S]*?if not contains -- \$tokens\[3\]/);
+  });
+
+  test("add subcommand function stops when manager is complete", () => {
+    const script = renderFishCompletion(["FEAT-123"], "/tmp/worktrees");
+    expect(script).toMatch(/__ns_needs_add_subcommand[\s\S]*?if not contains -- \$tokens\[3\]/);
+  });
+
+  test("workspace subcommand function stops when template is complete", () => {
+    const script = renderFishCompletion(["FEAT-123"], "/tmp/worktrees");
+    expect(script).toMatch(/__ns_needs_workspace_subcommand[\s\S]*?if not contains -- \$tokens\[3\]/);
+  });
+
+  test("workspace template subcommand stops when save/apply is complete", () => {
+    const script = renderFishCompletion(["FEAT-123"], "/tmp/worktrees");
+    expect(script).toMatch(/__ns_needs_workspace_template_subcommand[\s\S]*?if not contains -- \$tokens\[4\]/);
+  });
 });
 
 describe("completion bash", () => {
