@@ -3,7 +3,7 @@ import { dockerComposeDown, dockerVolumeRm } from "../lib/docker";
 import { removeWorktree, deleteBranch } from "../lib/git";
 import { removeAlias } from "../lib/portless";
 import { confirm as defaultConfirm } from "../lib/prompt";
-import { colors, spinner, warn } from "../lib/logger";
+import { colors, hint, spinner, warn } from "../lib/logger";
 import { join } from "path";
 
 interface RmDeps {
@@ -30,7 +30,7 @@ const defaultDeps: RmDeps = {
 
 export async function rmAction(
   branch: string,
-  purge: boolean,
+  { purge = false, force = false, dryRun = false }: { purge?: boolean; force?: boolean; dryRun?: boolean } = {},
   deps: Partial<RmDeps> = {},
 ): Promise<void> {
   const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, confirm } = {
@@ -38,21 +38,32 @@ export async function rmAction(
     ...deps,
   };
 
-  const s = spinner(`Removendo ${branch}...`).start();
-
   const env = await readEnv(branch);
   if (!env) {
-    s.fail(`Branch '${branch}' não encontrada`);
+    warn(`Branch '${branch}' não encontrada`);
     process.exit(1);
   }
 
-  if (!purge) {
-    const shouldDelete = await confirm(`Delete branch ${branch}?`);
+  if (dryRun) {
+    const wtDir = join(WORKTREES_DIR, branch);
+    warn(`[dry-run] Seria removido:`);
+    hint(`  worktree: ${wtDir}`);
+    hint(`  branch local em: ${BACKEND_REPO}, ${FRONTEND_REPO}`);
+    if (hasMgr(branch)) hint(`  branch local em: ${MANAGER_REPO}`);
+    if (purge) hint(`  volume Docker: ${env.DB_VOLUME}`);
+    return;
+  }
+
+  const s = spinner(`Removendo ${branch}...`).start();
+
+  if (!force) {
+    s.stop();
+    const shouldDelete = await confirm(`Remover branch ${branch}?`);
     if (!shouldDelete) {
-      s.stop();
       warn("Operação cancelada.");
       return;
     }
+    s.start();
   }
 
   const wtDir = join(WORKTREES_DIR, branch);

@@ -1,14 +1,22 @@
 import { readWorkspaceEnv, WORKTREES_DIR, SEED_VOLUME } from "../lib/config";
 import { dockerComposeDown, dockerVolumeRm, dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
 import { confirm } from "../lib/prompt";
-import { error, spinner, warn } from "../lib/logger";
+import { error, hint, spinner, warn } from "../lib/logger";
 import { join } from "path";
 
-export async function clearDbAction(branch: string): Promise<void> {
+export async function clearDbAction(branch: string, dryRun = false): Promise<void> {
   const env = await readWorkspaceEnv(branch);
   if (!env) {
     error(`Branch '${branch}' não encontrada`);
     process.exit(1);
+  }
+
+  if (dryRun) {
+    warn(`[dry-run] Seria executado em '${branch}':`);
+    hint(`  parar serviços (docker-compose down)`);
+    hint(`  remover volume: ${env.DB_VOLUME}`);
+    hint(`  recriar e popular a partir de: ${SEED_VOLUME}`);
+    return;
   }
 
   const shouldClear = await confirm(

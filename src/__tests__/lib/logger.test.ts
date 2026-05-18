@@ -16,13 +16,13 @@ describe("logger", () => {
 
   test("ok prints ok message", () => {
     const consoleSpy = mock(() => {});
-    const originalLog = console.log;
+    const originalError = console.error;
     try {
-      console.log = consoleSpy;
+      console.error = consoleSpy;
       ok("test message");
       expect(consoleSpy).toHaveBeenCalled();
     } finally {
-      console.log = originalLog;
+      console.error = originalError;
     }
   });
 
@@ -59,13 +59,13 @@ describe("logger", () => {
 
   test("heading prints heading", () => {
     const consoleSpy = mock(() => {});
-    const originalLog = console.log;
+    const originalError = console.error;
     try {
-      console.log = consoleSpy;
+      console.error = consoleSpy;
       heading("Test Heading");
       expect(consoleSpy).toHaveBeenCalled();
     } finally {
-      console.log = originalLog;
+      console.error = originalError;
     }
   });
 

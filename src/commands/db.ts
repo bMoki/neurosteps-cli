@@ -23,7 +23,8 @@ export function dbCommand(): Command {
       new Command("reset")
         .description("Reseta o volume do banco e reseeda do original")
         .argument("<branch>", "nome da branch")
-        .action(clearDbAction),
+        .option("-n, --dry-run", "simula a operação sem executar")
+        .action((branch, opts) => clearDbAction(branch, opts.dryRun)),
     )
     .addCommand(
       new Command("port")
@@ -50,7 +51,8 @@ export function dbCommand(): Command {
         .argument("<branch>", "nome da branch")
         .argument("<name>", "nome do snapshot")
         .option("-f, --force", "pula confirmação")
-        .action((branch, name, opts) => restoreAction(branch, name, opts.force)),
+        .option("-n, --dry-run", "simula a operação sem executar")
+        .action((branch, name, opts) => restoreAction(branch, name, opts.force, {}, opts.dryRun)),
     )
     .addCommand(
       new Command("snapshots")
@@ -65,7 +67,8 @@ export function dbCommand(): Command {
         .argument("<branch>", "nome da branch")
         .argument("<name>", "nome do snapshot")
         .option("-f, --force", "pula confirmação")
-        .action((branch, name, opts) => rmSnapshotAction(branch, name, opts.force)),
+        .option("-n, --dry-run", "simula a operação sem executar")
+        .action((branch, name, opts) => rmSnapshotAction(branch, name, opts.force, {}, opts.dryRun)),
     )
     .addCommand(
       new Command("open")

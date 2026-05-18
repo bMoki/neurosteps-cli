@@ -137,12 +137,12 @@ describe("snapshot actions", () => {
     }));
 
     const consoleSpy = mock(() => {});
-    const originalLog = console.log;
-    console.log = consoleSpy;
+    const originalError = console.error;
+    console.error = consoleSpy;
 
     await listSnapshotsAction("feat-123", deps as any);
 
-    console.log = originalLog;
+    console.error = originalError;
     expect(consoleSpy.mock.calls.some((call: any) => String(call[0]).includes("Snapshots: feat-123"))).toBe(true);
     expect(consoleSpy.mock.calls.some((call: any) => String(call[0]).includes("base:"))).toBe(true);
     expect(consoleSpy.mock.calls.some((call: any) => String(call[0]).includes("older:"))).toBe(true);

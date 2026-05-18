@@ -18,7 +18,7 @@ describe("rmAction", () => {
 
   test("removes branch with all services", async () => {
     const mocks = createMocks();
-    await rmAction("feat-123", false, mocks);
+    await rmAction("feat-123", { force: true }, mocks);
 
     expect(mocks.readEnv).toHaveBeenCalledWith("feat-123");
     expect(mocks.composeDown).toHaveBeenCalled();
@@ -27,19 +27,33 @@ describe("rmAction", () => {
     expect(mocks.delBranch).toHaveBeenCalledTimes(3);
   });
 
-  test("removes volume when purge is true", async () => {
+  test("removes volume when purge and force are true", async () => {
     const mocks = createMocks();
-    mocks.confirm = mock(() => Promise.resolve(false)); // Should not be called
-    await rmAction("feat-123", true, mocks);
+    await rmAction("feat-123", { purge: true, force: true }, mocks);
 
     expect(mocks.volumeRm).toHaveBeenCalledWith("myapp_db_feat-123");
     expect(mocks.confirm).not.toHaveBeenCalled();
   });
 
+  test("purge without force still asks for confirmation", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { purge: true }, mocks);
+
+    expect(mocks.confirm).toHaveBeenCalled();
+    expect(mocks.volumeRm).toHaveBeenCalledWith("myapp_db_feat-123");
+  });
+
+  test("does not remove volume without purge flag", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { force: true }, mocks);
+
+    expect(mocks.volumeRm).not.toHaveBeenCalled();
+  });
+
   test("aborts when user cancels", async () => {
     const mocks = createMocks();
     mocks.confirm = mock(() => Promise.resolve(false));
-    await rmAction("feat-123", false, mocks);
+    await rmAction("feat-123", {}, mocks);
 
     expect(mocks.composeDown).not.toHaveBeenCalled();
   });
@@ -52,7 +66,7 @@ describe("rmAction", () => {
     process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
 
     try {
-      await rmAction("NONEXISTENT", false, mocks);
+      await rmAction("NONEXISTENT", {}, mocks);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(ProcessExit);

@@ -19,7 +19,8 @@ export function rmCommand(): Command {
     .argument("<branch>", "nome da branch")
     .option("--purge", "também remove o volume Docker")
     .option("-f, --force", "pula confirmação")
+    .option("-n, --dry-run", "simula a operação sem executar")
     .action(async (branch, opts) => {
-      await rmAction(branch, opts.purge || opts.force || false);
+      await rmAction(branch, { purge: opts.purge || false, force: opts.force || false, dryRun: opts.dryRun || false });
     });
 }

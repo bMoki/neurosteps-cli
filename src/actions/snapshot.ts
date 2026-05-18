@@ -3,7 +3,7 @@ import { existsSync } from "fs";
 import { z } from "zod";
 import { WORKTREES_DIR, readWorkspaceEnv, slugify, PRODUCT_NAME, SNAPSHOTS_DIR, listBranches } from "../lib/config";
 import { dockerComposeDown, dockerVolumeCreate, dockerVolumeCopy, dockerComposeUp, dockerVolumeRm, waitForPostgres } from "../lib/docker";
-import { detail, emptyLine, heading, info, spinner, warn, error } from "../lib/logger";
+import { detail, emptyLine, heading, hint, info, spinner, warn, error } from "../lib/logger";
 import { confirm } from "../lib/prompt";
 import { join } from "path";
 
@@ -203,6 +203,7 @@ export async function restoreAction(
   name: string,
   force: boolean,
   deps: Partial<SnapshotDeps> = {},
+  dryRun = false,
 ): Promise<void> {
   const defaulted = { ...defaultDeps, ...deps };
   const { readEnv, composeDown, volumeRm, volumeCreate, volumeCopy, composeUp, waitPg, confirm } = defaulted;
@@ -216,6 +217,15 @@ export async function restoreAction(
     }
 
     const snapshot = await readSnapshotMeta(branch, name, defaulted);
+
+    if (dryRun) {
+      s.stop();
+      warn(`[dry-run] Seria executado em '${branch}':`);
+      hint(`  parar PostgreSQL`);
+      hint(`  substituir volume ${env.DB_VOLUME} pelo snapshot '${snapshot.name}'`);
+      hint(`  origem: ${snapshot.volume}`);
+      return;
+    }
 
     if (!force) {
       s.stop();
@@ -305,12 +315,20 @@ export async function rmSnapshotAction(
   name: string,
   force: boolean,
   deps: Partial<SnapshotDeps> = {},
+  dryRun = false,
 ): Promise<void> {
   const defaulted = { ...defaultDeps, ...deps };
   const { confirm, volumeRm } = defaulted;
 
   try {
     const snapshot = await readSnapshotMeta(branch, name, defaulted);
+
+    if (dryRun) {
+      warn(`[dry-run] Seria removido o snapshot '${snapshot.name}' de '${branch}':`);
+      hint(`  volume: ${snapshot.volume}`);
+      hint(`  arquivo: ${join(getSnapshotDir(branch), `${snapshot.name}.json`)}`);
+      return;
+    }
 
     if (!force) {
       const shouldRemove = await confirm(`Remover snapshot '${snapshot.name}' de ${branch}?`);

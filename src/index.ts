@@ -19,7 +19,7 @@ import {
 } from "./commands";
 import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
-import { error } from "./lib/logger";
+import { error, warn, hint } from "./lib/logger";
 
 process.on("SIGINT", () => {
   process.stderr.write("\nInterrompido.\n");
@@ -34,7 +34,8 @@ process.on("SIGTERM", () => {
 const program = configureCliProgram(new Command()
   .name("ns")
   .description("NeuroSteps Workspace CLI")
-  .version("1.1.0"));
+  .version("1.1.0")
+  .addHelpText("after", "\nProblemas ou sugestões? https://github.com/bMoki/neurosteps-cli/issues"));
 
 program
   .addCommand(initCommand())
@@ -90,17 +91,12 @@ async function main(argv = process.argv): Promise<void> {
     firstArg === "completion";
 
   if (!isBootstrapSafe && !isConfigured()) {
-    console.error("⚠️  CLI não configurado.");
-    console.error("");
+    warn("CLI não configurado.");
     const missing = getMissingVars();
-    if (missing.length > 0) {
-      console.error("Variáveis faltando:");
-      for (const v of missing) {
-        console.error(`  - ${v}`);
-      }
-      console.error("");
+    for (const v of missing) {
+      hint(`  variável faltando: ${v}`);
     }
-    console.error("Rode 'ns init' para configurar.");
+    hint("Rode 'ns init' para configurar.");
     process.exit(1);
   }
 

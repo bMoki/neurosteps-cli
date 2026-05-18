@@ -56,8 +56,10 @@ export function isQuietEnabled(): boolean {
 }
 
 export function shouldUseColor(): boolean {
+  if (process.env.FORCE_COLOR) return true;
   if (process.argv.includes("--no-color")) return false;
   if (process.env.NO_COLOR) return false;
+  if (process.env.NS_NO_COLOR) return false;
   if (process.env.TERM === "dumb") return false;
   return Boolean(process.stdout.isTTY || process.stderr.isTTY);
 }
