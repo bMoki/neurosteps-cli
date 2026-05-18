@@ -80,7 +80,7 @@ describe("portless", () => {
     }
   });
 
-  test("removeAlias throws on failure", async () => {
+  test("removeAlias does not throw when alias does not exist", async () => {
     const originalSpawn = Bun.spawn;
     Bun.spawn = mock(() => ({
       exited: Promise.resolve(1),
@@ -94,7 +94,7 @@ describe("portless", () => {
     })) as any;
 
     try {
-      await expect(removeAlias("missing.api")).rejects.toThrow("Falha ao remover alias Portless missing.api");
+      await expect(removeAlias("missing.api")).resolves.toBeUndefined();
     } finally {
       Bun.spawn = originalSpawn;
     }

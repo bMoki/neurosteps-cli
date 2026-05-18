@@ -3,8 +3,9 @@ import { dockerComposeDown, dockerVolumeRm } from "../lib/docker";
 import { removeWorktree, deleteBranch } from "../lib/git";
 import { removeAlias } from "../lib/portless";
 import { confirm as defaultConfirm } from "../lib/prompt";
-import { colors, hint, spinner, warn } from "../lib/logger";
+import { colors, spinner, warn } from "../lib/logger";
 import { join } from "path";
+import { rm } from "fs/promises";
 
 interface RmDeps {
   readEnv: typeof readWorkspaceEnv;
@@ -15,6 +16,7 @@ interface RmDeps {
   delBranch: typeof deleteBranch;
   hasMgr: typeof hasManager;
   confirm: typeof defaultConfirm;
+  rmDir: (path: string) => Promise<void>;
 }
 
 const defaultDeps: RmDeps = {
@@ -26,6 +28,7 @@ const defaultDeps: RmDeps = {
   delBranch: deleteBranch,
   hasMgr: hasManager,
   confirm: defaultConfirm,
+  rmDir: (path) => rm(path, { recursive: true, force: true }),
 };
 
 export async function rmAction(
@@ -33,7 +36,7 @@ export async function rmAction(
   { purge = false, force = false, dryRun = false }: { purge?: boolean; force?: boolean; dryRun?: boolean } = {},
   deps: Partial<RmDeps> = {},
 ): Promise<void> {
-  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, confirm } = {
+  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, confirm, rmDir } = {
     ...defaultDeps,
     ...deps,
   };
@@ -44,9 +47,11 @@ export async function rmAction(
     process.exit(1);
   }
 
+  const wtDir = join(WORKTREES_DIR, branch);
+
   if (dryRun) {
-    const wtDir = join(WORKTREES_DIR, branch);
     warn(`[dry-run] Seria removido:`);
+    const { hint } = await import("../lib/logger");
     hint(`  worktree: ${wtDir}`);
     hint(`  branch local em: ${BACKEND_REPO}, ${FRONTEND_REPO}`);
     if (hasMgr(branch)) hint(`  branch local em: ${MANAGER_REPO}`);
@@ -54,51 +59,57 @@ export async function rmAction(
     return;
   }
 
-  const s = spinner(`Removendo ${branch}...`).start();
-
   if (!force) {
-    s.stop();
     const shouldDelete = await confirm(`Remover branch ${branch}?`);
     if (!shouldDelete) {
       warn("Operação cancelada.");
       return;
     }
-    s.start();
   }
 
-  const wtDir = join(WORKTREES_DIR, branch);
   const composeFile = join(wtDir, "docker-compose.yml");
-
   const aliasSlug = env.BRANCH_SLUG || branch.toLowerCase();
 
-  s.text = "Parando serviços...";
-  await composeDown(composeFile, env.COMPOSE_PROJECT);
+  const step = async (msg: string, successMsg: string, fn: () => Promise<void>) => {
+    const s = spinner(msg).start();
+    try {
+      await fn();
+      s.succeed(successMsg);
+    } catch (e) {
+      s.fail(msg);
+      throw e;
+    }
+  };
 
-  s.text = "Removendo aliases Portless...";
-  await rmAlias(`${aliasSlug}.web.${PRODUCT_NAME}`);
-  await rmAlias(`${aliasSlug}.api.${PRODUCT_NAME}`);
-  if (env.MANAGER_PORT) {
-    await rmAlias(`${aliasSlug}.manager.${PRODUCT_NAME}`);
-  }
+  await step("Parando serviços...", "Serviços parados", () =>
+    composeDown(composeFile, env.COMPOSE_PROJECT),
+  );
+
+  await step("Removendo aliases Portless...", "Aliases Portless removidos", async () => {
+    await rmAlias(`${aliasSlug}.web.${PRODUCT_NAME}`);
+    await rmAlias(`${aliasSlug}.api.${PRODUCT_NAME}`);
+    if (env.MANAGER_PORT) await rmAlias(`${aliasSlug}.manager.${PRODUCT_NAME}`);
+  });
 
   if (purge) {
-    s.text = "Removendo volume Docker...";
-    await volumeRm(env.DB_VOLUME);
+    await step("Removendo volume Docker...", "Volume Docker removido", () =>
+      volumeRm(env.DB_VOLUME),
+    );
   }
 
-  s.text = "Removendo worktrees...";
-  await rmWorktree(BACKEND_REPO, join(wtDir, "backend"));
-  await rmWorktree(FRONTEND_REPO, join(wtDir, "frontend"));
-  if (hasMgr(branch)) {
-    await rmWorktree(MANAGER_REPO, join(wtDir, "manager"));
-  }
+  await step("Removendo worktrees...", "Worktrees removidas", async () => {
+    await rmWorktree(BACKEND_REPO, join(wtDir, "backend"));
+    await rmWorktree(FRONTEND_REPO, join(wtDir, "frontend"));
+    if (hasMgr(branch)) await rmWorktree(MANAGER_REPO, join(wtDir, "manager"));
+  });
 
-  s.text = "Removendo branches locais...";
-  await delBranch(BACKEND_REPO, branch);
-  await delBranch(FRONTEND_REPO, branch);
-  if (hasMgr(branch)) {
-    await delBranch(MANAGER_REPO, branch);
-  }
+  await step("Removendo branches locais...", "Branches locais removidas", async () => {
+    await delBranch(BACKEND_REPO, branch);
+    await delBranch(FRONTEND_REPO, branch);
+    if (hasMgr(branch)) await delBranch(MANAGER_REPO, branch);
+  });
 
-  s.succeed(`${colors.bold(branch)} removida`);
+  await step("Removendo diretório...", `${colors.bold(branch)} removida`, () =>
+    rmDir(wtDir),
+  );
 }

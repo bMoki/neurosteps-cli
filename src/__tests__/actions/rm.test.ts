@@ -14,6 +14,7 @@ describe("rmAction", () => {
     delBranch: mock(() => Promise.resolve()),
     hasMgr: mock(() => true),
     confirm: mock(() => Promise.resolve(true)),
+    rmDir: mock(() => Promise.resolve()),
   });
 
   test("removes branch with all services", async () => {
@@ -25,6 +26,7 @@ describe("rmAction", () => {
     expect(mocks.rmAlias).toHaveBeenCalledTimes(3);
     expect(mocks.rmWorktree).toHaveBeenCalledTimes(3);
     expect(mocks.delBranch).toHaveBeenCalledTimes(3);
+    expect(mocks.rmDir).toHaveBeenCalledTimes(1);
   });
 
   test("removes volume when purge and force are true", async () => {

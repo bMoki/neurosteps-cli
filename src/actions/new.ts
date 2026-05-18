@@ -268,10 +268,13 @@ volumes:
   if (await pathExistsAsync(join(WORKSPACE_DIR, "templates/idea/misc.xml"))) {
     await shell(["cp", join(WORKSPACE_DIR, "templates/idea/misc.xml"), join(ideaDir, "misc.xml")], { silent: true });
   }
-  for (const cfg of ["compiler.xml", "encodings.xml", "jarRepositories.xml"]) {
+  for (const cfg of ["compiler.xml", "encodings.xml", "jarRepositories.xml", "modules.xml"]) {
     if (await pathExistsAsync(join(WORKSPACE_DIR, `templates/idea/${cfg}`))) {
       await shell(["cp", join(WORKSPACE_DIR, `templates/idea/${cfg}`), join(ideaDir, cfg)], { silent: true });
     }
+  }
+  if (await pathExistsAsync(join(WORKSPACE_DIR, "templates/idea/neurosteps-workspace.iml"))) {
+    await shell(["cp", join(WORKSPACE_DIR, "templates/idea/neurosteps-workspace.iml"), join(ideaDir, "neurosteps-workspace.iml")], { silent: true });
   }
   for (const dir of ["inspectionProfiles", "codeStyles", "scopes"]) {
     if (await pathExistsAsync(join(WORKSPACE_DIR, `templates/idea/${dir}`))) {

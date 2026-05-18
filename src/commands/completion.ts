@@ -156,9 +156,6 @@ function __ns_needs_command
   if test (count $tokens) -eq 1
     return 0
   end
-  if test (count $tokens) -eq 2
-    return 0
-  end
   return 1
 end
 

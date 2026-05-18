@@ -69,7 +69,7 @@ describe("docker functions", () => {
     }
   });
 
-  test("dockerVolumeRm throws on failure", async () => {
+  test("dockerVolumeRm does not throw when volume does not exist", async () => {
     const originalSpawn = Bun.spawn;
     Bun.spawn = mock(() => ({
       exited: Promise.resolve(1),
@@ -83,7 +83,7 @@ describe("docker functions", () => {
     })) as any;
 
     try {
-      await expect(dockerVolumeRm("missing-vol")).rejects.toThrow("Falha ao remover volume Docker missing-vol");
+      await expect(dockerVolumeRm("missing-vol")).resolves.toBeUndefined();
     } finally {
       Bun.spawn = originalSpawn;
     }

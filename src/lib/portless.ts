@@ -1,4 +1,4 @@
-import { commandErrorMessage, execChecked, execSync, type ShellResult } from "./shell";
+import { commandErrorMessage, exec, execChecked, execSync, type ShellResult } from "./shell";
 import { PORTLESS_PROXY_PORT } from "./config";
 
 export async function registerAlias(
@@ -13,10 +13,9 @@ export async function registerAlias(
 }
 
 export async function removeAlias(name: string): Promise<void> {
-  await execChecked(
+  await exec(
     ["portless", "alias", "--remove", name],
     { silent: true },
-    `remover alias Portless ${name}`,
   );
 }
 

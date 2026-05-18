@@ -29,7 +29,7 @@ export async function dockerVolumeCreate(name: string): Promise<void> {
 }
 
 export async function dockerVolumeRm(name: string): Promise<void> {
-  await execChecked(["docker", "volume", "rm", name], { silent: true }, `remover volume Docker ${name}`);
+  await exec(["docker", "volume", "rm", name], { silent: true });
 }
 
 export async function dockerVolumeExists(name: string): Promise<boolean> {
