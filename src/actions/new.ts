@@ -292,6 +292,13 @@ volumes:
     UUID: dsUuid,
   });
 
+  // Maven project registration (equivalent to "Add as Maven Project" in IntelliJ)
+  if (await pathExistsAsync(join(WORKSPACE_DIR, "templates/idea/workspace.xml"))) {
+    await copyTemplate(join(WORKSPACE_DIR, "templates/idea/workspace.xml"), join(ideaDir, "workspace.xml"), {
+      BACKEND_MODULE,
+    });
+  }
+
   // Run configurations
   const runDir = join(ideaDir, "runConfigurations");
   await shell(["mkdir", "-p", runDir], { silent: true });

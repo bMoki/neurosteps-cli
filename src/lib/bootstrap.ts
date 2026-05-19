@@ -154,6 +154,19 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
 `,
     optional: true,
   },
+  "idea/workspace.xml": {
+    content: `<project version="4">
+  <component name="MavenProjectsManager">
+    <option name="originalFiles">
+      <list>
+        <option value="$PROJECT_DIR$/backend/{{BACKEND_MODULE}}-core/pom.xml" />
+      </list>
+    </option>
+  </component>
+</project>
+`,
+    optional: true,
+  },
   "runConfigurations/Backend.xml": {
     content: `<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend {{BRANCH_NAME}}" type="ShConfigurationType">
