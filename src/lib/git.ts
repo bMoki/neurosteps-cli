@@ -1,4 +1,5 @@
 import { commandErrorMessage, execChecked, execSync, type ShellResult } from "./shell";
+import { pathExists } from "./filesystem";
 
 export async function branchExistsOnOrigin(
   repo: string,
@@ -66,11 +67,17 @@ export async function removeWorktree(
   if (force) args.push("--force");
   args.push(path);
 
-  await execChecked(
-    args,
-    { silent: true },
-    `remover worktree ${path}`,
-  );
+  try {
+    await execChecked(
+      args,
+      { silent: true },
+      `remover worktree ${path}`,
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!pathExists(path) && message.includes("is not a working tree")) return;
+    throw error;
+  }
 }
 
 export async function deleteBranch(repo: string, branch: string): Promise<void> {

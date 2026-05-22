@@ -45,6 +45,27 @@ describe("git error paths", () => {
     }
   });
 
+  test("removeWorktree ignores paths already missing from git worktrees", async () => {
+    const originalSpawn = Bun.spawn;
+    const missingPath = "/path-that-does-not-exist/ns-cli-worktree";
+    Bun.spawn = mock(() => ({
+      exited: Promise.resolve(128),
+      stdout: new ReadableStream({ start(c) { c.close(); } }),
+      stderr: new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode(`fatal: '${missingPath}' is not a working tree`));
+          c.close();
+        },
+      }),
+    })) as any;
+
+    try {
+      await expect(removeWorktree("/repo", missingPath)).resolves.toBeUndefined();
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
+
   test("createWorktree does not retry unrelated failures", async () => {
     const originalSpawn = Bun.spawn;
     const spawn = mock(() => ({
