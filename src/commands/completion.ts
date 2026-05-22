@@ -102,13 +102,20 @@ const CONFIG_SUBCOMMANDS = [
   "detect-apps",
 ];
 
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function shellWords(values: string[]): string {
+  return values.map(shellQuote).join(" ");
+}
+
 export function renderFishCompletion(
   branches: string[],
   worktreesDir = WORKTREES_DIR,
   snapshotsDir = SNAPSHOTS_DIR,
 ): string {
-  void worktreesDir;
-  const branchList = branches.join(" ");
+  const branchList = shellWords(branches);
   const commands = COMMANDS.join(" ");
   const branchCommands = BRANCH_COMMANDS.join(" ");
   const dbSubs = DB_SUBCOMMANDS.join(" ");
@@ -119,8 +126,17 @@ export function renderFishCompletion(
   const completionShells = COMPLETION_SHELLS.join(" ");
 
   return `
-function __ns_branches
+function __ns_static_branches
   printf "%s\\n" ${branchList}
+end
+
+function __ns_branches
+  set -l worktrees_dir ${shellQuote(worktreesDir)}
+  if test -d "$worktrees_dir"
+    command ls -1 "$worktrees_dir" 2>/dev/null
+    return
+  end
+  __ns_static_branches
 end
 
 function __ns_commands
@@ -435,12 +451,13 @@ complete -c ns -n "__ns_needs_config_subcommand" -a "(__ns_config_subs)"
 export function renderBashCompletion(
   branches: string[],
   snapshotsDir = SNAPSHOTS_DIR,
+  worktreesDir = WORKTREES_DIR,
 ): string {
   return `
 _ns_completions() {
   local cur=\${COMP_WORDS[COMP_CWORD]}
   local cmds="${COMMANDS.join(" ")}"
-  local branches="${branches.join(" ")}"
+  local -a fallback_branches=(${shellWords(branches)})
   local db_subs="${DB_SUBCOMMANDS.join(" ")}"
   local add_subs="${ADD_SUBCOMMANDS.join(" ")}"
   local ws_subs="${WORKSPACE_SUBCOMMANDS.join(" ")}"
@@ -448,7 +465,16 @@ _ns_completions() {
   local cfg_subs="${CONFIG_SUBCOMMANDS.join(" ")}"
   local completion_shells="${COMPLETION_SHELLS.join(" ")}"
   local snapshots_dir="${snapshotsDir}"
+  local worktrees_dir=${shellQuote(worktreesDir)}
   local branch=""
+
+  _ns_branches() {
+    if [ -d "$worktrees_dir" ]; then
+      command ls -1 "$worktrees_dir" 2>/dev/null
+      return
+    fi
+    printf "%s\\n" "\${fallback_branches[@]}"
+  }
 
   _ns_snapshot_names() {
     local branch_name="$1"
@@ -466,7 +492,7 @@ _ns_completions() {
   case "\${COMP_WORDS[1]}" in
     ${BRANCH_COMMANDS.join("|")})
       if [ $COMP_CWORD -eq 2 ]; then
-        COMPREPLY=( $(compgen -W "$branches" -- "$cur") )
+        COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
         return
       fi
       ;;
@@ -482,7 +508,7 @@ _ns_completions() {
         return
       fi
       if [ "\${COMP_WORDS[2]}" = "manager" ] && [ $COMP_CWORD -eq 3 ]; then
-        COMPREPLY=( $(compgen -W "$branches" -- "$cur") )
+        COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
         return
       fi
       ;;
@@ -495,7 +521,7 @@ _ns_completions() {
     case "\${COMP_WORDS[2]}" in
       ${DB_BRANCH_SUBCOMMANDS.join("|")})
         if [ $COMP_CWORD -eq 3 ]; then
-          COMPREPLY=( $(compgen -W "$branches" -- "$cur") )
+          COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
           return
         fi
         ;;
@@ -525,7 +551,7 @@ _ns_completions() {
         case "\${COMP_WORDS[3]}" in
           ${WORKSPACE_TEMPLATE_SUBCOMMANDS.join("|")})
             if [ $COMP_CWORD -eq 4 ]; then
-              COMPREPLY=( $(compgen -W "$branches" -- "$cur") )
+              COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
               return
             fi
             ;;
@@ -547,12 +573,14 @@ complete -F _ns_completions ns
 export function renderZshCompletion(
   branches: string[],
   snapshotsDir = SNAPSHOTS_DIR,
+  worktreesDir = WORKTREES_DIR,
 ): string {
   return `
 #compdef ns
 _ns() {
   local -a cmds=(${COMMANDS.map((c) => `"${c}"`).join(" ")})
-  local -a branches=(${branches.map((b) => `"${b}"`).join(" ")})
+  local -a fallback_branches=(${shellWords(branches)})
+  local -a branches
   local -a db_subs=(${DB_SUBCOMMANDS.map((s) => `"${s}"`).join(" ")})
   local -a add_subs=(${ADD_SUBCOMMANDS.map((s) => `"${s}"`).join(" ")})
   local -a ws_subs=(${WORKSPACE_SUBCOMMANDS.map((s) => `"${s}"`).join(" ")})
@@ -560,7 +588,18 @@ _ns() {
   local -a cfg_subs=(${CONFIG_SUBCOMMANDS.map((s) => `"${s}"`).join(" ")})
   local -a completion_shells=(${COMPLETION_SHELLS.map((s) => `"${s}"`).join(" ")})
   local snapshots_dir="${snapshotsDir}"
+  local worktrees_dir=${shellQuote(worktreesDir)}
   local -a snapshot_names
+
+  _ns_branches() {
+    if [[ -d "$worktrees_dir" ]]; then
+      command ls -1 "$worktrees_dir" 2>/dev/null
+      return
+    fi
+    printf "%s\\n" "\${fallback_branches[@]}"
+  }
+
+  branches=(\${(f)"$(_ns_branches)"})
 
   _ns_snapshot_names() {
     local branch="$1"

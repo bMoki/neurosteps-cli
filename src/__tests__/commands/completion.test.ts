@@ -3,22 +3,25 @@ import { renderBashCompletion, renderFishCompletion, renderZshCompletion } from 
 
 describe("completion fish", () => {
   test("commands and branches are newline separated", () => {
-    const script = renderFishCompletion(["FEAT-123", "master"], "/tmp/worktrees");
+    const script = renderFishCompletion(["assinatura-demo", "master"], "/tmp/worktrees");
 
     const commandsLine = script.match(/function __ns_commands\n  ([^\n]+)/)?.[1] ?? "";
-    const branchesLine = script.match(/function __ns_branches\n  ([^\n]+)/)?.[1] ?? "";
+    const branchesLine = script.match(/function __ns_static_branches\n  ([^\n]+)/)?.[1] ?? "";
 
     expect(commandsLine).toContain("printf");
     expect(commandsLine).toContain("\\n");
     expect(branchesLine).toContain("printf");
     expect(branchesLine).toContain("\\n");
+    expect(branchesLine).toContain("assinatura-demo");
   });
 
-  test("branch listing uses provided branches", () => {
+  test("branch listing is dynamic with a static fallback", () => {
     const script = renderFishCompletion(["master"], "/tmp/worktrees");
     expect(script).toContain('function __ns_branches');
-    expect(script).toContain('printf "%s\\n" master');
-    expect(script).not.toContain('command ls -1 "/tmp/worktrees"');
+    expect(script).toContain("set -l worktrees_dir '/tmp/worktrees'");
+    expect(script).toContain('command ls -1 "$worktrees_dir"');
+    expect(script).toContain('function __ns_static_branches');
+    expect(script).toContain("'master'");
   });
 
   test("branch completion includes branch-taking commands", () => {
@@ -101,6 +104,16 @@ describe("completion fish", () => {
 });
 
 describe("completion bash", () => {
+  test("branch completion reads worktrees at completion time", () => {
+    const script = renderBashCompletion(["assinatura-demo"], "/tmp/snapshots", "/tmp/worktrees");
+
+    expect(script).toContain("local worktrees_dir='/tmp/worktrees'");
+    expect(script).toContain('command ls -1 "$worktrees_dir"');
+    expect(script).toContain('local -a fallback_branches=(\'assinatura-demo\')');
+    expect(script).toContain('compgen -W "$(_ns_branches)" -- "$cur"');
+    expect(script).not.toContain('compgen -W "$branches" -- "$cur"');
+  });
+
   test("db restore and rm-snapshot complete snapshot names", () => {
     const script = renderBashCompletion(["FEAT-123"], "/tmp/snapshots");
     expect(script).toContain('_ns_snapshot_names()');
@@ -127,6 +140,15 @@ describe("completion bash", () => {
 });
 
 describe("completion zsh", () => {
+  test("branch completion reads worktrees at completion time", () => {
+    const script = renderZshCompletion(["assinatura-demo"], "/tmp/snapshots", "/tmp/worktrees");
+
+    expect(script).toContain("local worktrees_dir='/tmp/worktrees'");
+    expect(script).toContain('command ls -1 "$worktrees_dir"');
+    expect(script).toContain("local -a fallback_branches=('assinatura-demo')");
+    expect(script).toContain('branches=(${(f)"$(_ns_branches)"})');
+  });
+
   test("db restore and rm-snapshot complete snapshot names", () => {
     const script = renderZshCompletion(["FEAT-123"], "/tmp/snapshots");
     expect(script).toContain('_ns_snapshot_names()');
