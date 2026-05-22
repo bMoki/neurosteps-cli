@@ -11,13 +11,35 @@ export interface ShellResult {
   command: string[];
 }
 
+const SHELL_SAFE_ARG = /^[A-Za-z0-9_./:=@%+-]+$/;
+
+export function quoteShellArg(arg: string): string {
+  if (SHELL_SAFE_ARG.test(arg)) {
+    return arg;
+  }
+  return `'${arg.replace(/'/g, `'\\''`)}'`;
+}
+
 export function formatCommand(command: string[]): string {
-  return command.map((arg) => {
-    if (/^[A-Za-z0-9_./:=@%+-]+$/.test(arg)) {
-      return arg;
-    }
-    return `'${arg.replace(/'/g, `'\\''`)}'`;
-  }).join(" ");
+  return command.map(quoteShellArg).join(" ");
+}
+
+export function formatShellCommand(
+  cwd: string,
+  env: Record<string, string>,
+  command: string,
+): string {
+  const parts = [`cd ${quoteShellArg(cwd)}`];
+  const envStr = Object.entries(env)
+    .map(([k, v]) => `export ${k}=${quoteShellArg(v)}`)
+    .join(" && ");
+  if (envStr) parts.push(envStr);
+  parts.push(command);
+  return parts.join(" && ");
+}
+
+function quoteAppleScriptString(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
 
 export function commandErrorMessage(action: string, result: ShellResult): string {
@@ -106,12 +128,9 @@ export async function spawnTerminal(
   env: Record<string, string>,
   command: string,
 ): Promise<void> {
-  const envStr = Object.entries(env)
-    .map(([k, v]) => `export ${k}="${v}"`)
-    .join(" && ");
-  
+  const shellCommand = formatShellCommand(cwd, env, command);
   const script = `tell application "Terminal"
-    do script "cd '${cwd}' && ${envStr} && ${command}"
+    do script ${quoteAppleScriptString(shellCommand)}
   end tell`;
 
   await execChecked(["osascript", "-e", script], { silent: true }, "abrir Terminal.app no macOS");
