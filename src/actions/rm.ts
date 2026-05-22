@@ -98,9 +98,9 @@ export async function rmAction(
   }
 
   await step("Removendo worktrees...", "Worktrees removidas", async () => {
-    await rmWorktree(BACKEND_REPO, join(wtDir, "backend"));
-    await rmWorktree(FRONTEND_REPO, join(wtDir, "frontend"));
-    if (hasMgr(branch)) await rmWorktree(MANAGER_REPO, join(wtDir, "manager"));
+    await rmWorktree(BACKEND_REPO, join(wtDir, "backend"), { force });
+    await rmWorktree(FRONTEND_REPO, join(wtDir, "frontend"), { force });
+    if (hasMgr(branch)) await rmWorktree(MANAGER_REPO, join(wtDir, "manager"), { force });
   });
 
   await step("Removendo branches locais...", "Branches locais removidas", async () => {

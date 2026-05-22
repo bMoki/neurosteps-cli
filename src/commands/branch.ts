@@ -18,7 +18,7 @@ export function rmCommand(): Command {
     .description("Remove a worktree da branch")
     .argument("<branch>", "nome da branch")
     .option("--purge", "também remove o volume Docker")
-    .option("-f, --force", "pula confirmação")
+    .option("-f, --force", "pula confirmação e força remoção de worktrees com alterações locais")
     .option("-n, --dry-run", "simula a operação sem executar")
     .action(async (branch, opts) => {
       await rmAction(branch, { purge: opts.purge || false, force: opts.force || false, dryRun: opts.dryRun || false });

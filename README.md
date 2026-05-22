@@ -200,6 +200,12 @@ Para remover também o volume Docker do banco:
 ns rm minha-branch --purge
 ```
 
+Para remover sem confirmação e descartar alterações locais nas worktrees:
+
+```bash
+ns rm minha-branch --force
+```
+
 ## Referência
 
 ### Requisitos
@@ -249,6 +255,7 @@ ns rm minha-branch --purge
 | `ns add manager <branch> --port <port>` | Adiciona manager com porta específica. | Atualiza `.workspace.env`. |
 | `ns rm <branch>` | Remove worktrees e branches locais. | Pede confirmação. |
 | `ns rm <branch> --purge` | Remove também o volume Docker da branch. | Destrutivo para o banco local. |
+| `ns rm <branch> --force` | Remove sem confirmação e força remoção de worktrees sujas. | Descarta alterações locais não commitadas nas worktrees. |
 
 ### Comandos de runtime
 
@@ -344,6 +351,7 @@ Opcionais:
 | --- | --- |
 | `ns rm <branch>` | Remove worktrees e branches locais. |
 | `ns rm <branch> --purge` | Remove worktrees, branches locais e volume Docker da branch. |
+| `ns rm <branch> --force` | Remove sem confirmação e descarta alterações locais nas worktrees. |
 | `ns db reset <branch>` | Apaga o volume atual da branch e reseeda a partir de `NS_SEED_VOLUME`. |
 | `ns db restore <branch> <snapshot>` | Substitui o banco atual pelo snapshot. |
 | `ns db rm-snapshot <branch> <snapshot>` | Remove volume e metadados do snapshot. |

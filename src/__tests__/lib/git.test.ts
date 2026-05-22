@@ -72,13 +72,47 @@ describe("git", () => {
 
   test("removeWorktree calls git worktree remove", async () => {
     const originalSpawn = Bun.spawn;
-    Bun.spawn = mock(() => ({
+    const spawn = mock(() => ({
       exited: Promise.resolve(0),
     })) as any;
+    Bun.spawn = spawn;
 
-    await removeWorktree("/repo", "/path");
+    try {
+      await removeWorktree("/repo", "/path");
+      expect(spawn.mock.calls[0][0]).toEqual([
+        "git",
+        "-C",
+        "/repo",
+        "worktree",
+        "remove",
+        "/path",
+      ]);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
 
-    Bun.spawn = originalSpawn;
+  test("removeWorktree passes force to git worktree remove", async () => {
+    const originalSpawn = Bun.spawn;
+    const spawn = mock(() => ({
+      exited: Promise.resolve(0),
+    })) as any;
+    Bun.spawn = spawn;
+
+    try {
+      await removeWorktree("/repo", "/path", { force: true });
+      expect(spawn.mock.calls[0][0]).toEqual([
+        "git",
+        "-C",
+        "/repo",
+        "worktree",
+        "remove",
+        "--force",
+        "/path",
+      ]);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
   });
 
   test("deleteBranch calls git branch -D", async () => {

@@ -25,6 +25,11 @@ describe("rmAction", () => {
     expect(mocks.composeDown).toHaveBeenCalled();
     expect(mocks.rmAlias).toHaveBeenCalledTimes(3);
     expect(mocks.rmWorktree).toHaveBeenCalledTimes(3);
+    expect(mocks.rmWorktree.mock.calls.map((call) => call[2])).toEqual([
+      { force: true },
+      { force: true },
+      { force: true },
+    ]);
     expect(mocks.delBranch).toHaveBeenCalledTimes(3);
     expect(mocks.rmDir).toHaveBeenCalledTimes(1);
   });
@@ -43,6 +48,11 @@ describe("rmAction", () => {
 
     expect(mocks.confirm).toHaveBeenCalled();
     expect(mocks.volumeRm).toHaveBeenCalledWith("myapp_db_feat-123");
+    expect(mocks.rmWorktree.mock.calls.map((call) => call[2])).toEqual([
+      { force: false },
+      { force: false },
+      { force: false },
+    ]);
   });
 
   test("does not remove volume without purge flag", async () => {

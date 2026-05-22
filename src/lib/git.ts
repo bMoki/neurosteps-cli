@@ -50,9 +50,14 @@ export async function createWorktree(
 export async function removeWorktree(
   repo: string,
   path: string,
+  { force = false }: { force?: boolean } = {},
 ): Promise<void> {
+  const args = ["git", "-C", repo, "worktree", "remove"];
+  if (force) args.push("--force");
+  args.push(path);
+
   await execChecked(
-    ["git", "-C", repo, "worktree", "remove", path],
+    args,
     { silent: true },
     `remover worktree ${path}`,
   );
