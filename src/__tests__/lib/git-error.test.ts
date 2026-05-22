@@ -1,5 +1,5 @@
 import { describe, test, expect, mock } from "bun:test";
-import { createLocalBranch, deleteBranch, localBranchExists, removeWorktree } from "../../lib/git";
+import { createLocalBranch, createWorktree, deleteBranch, localBranchExists, removeWorktree } from "../../lib/git";
 
 describe("git error paths", () => {
   test("createLocalBranch throws on failure", async () => {
@@ -40,6 +40,28 @@ describe("git error paths", () => {
 
     try {
       await expect(removeWorktree("/repo", "/missing")).rejects.toThrow("Falha ao remover worktree /missing");
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
+
+  test("createWorktree does not retry unrelated failures", async () => {
+    const originalSpawn = Bun.spawn;
+    const spawn = mock(() => ({
+      exited: Promise.resolve(128),
+      stdout: new ReadableStream({ start(c) { c.close(); } }),
+      stderr: new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode("fatal: 'feature' is already checked out"));
+          c.close();
+        },
+      }),
+    })) as any;
+    Bun.spawn = spawn;
+
+    try {
+      await expect(createWorktree("/repo", "/path", "feature")).rejects.toThrow("Falha ao criar worktree /path");
+      expect(spawn).toHaveBeenCalledTimes(1);
     } finally {
       Bun.spawn = originalSpawn;
     }

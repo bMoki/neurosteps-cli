@@ -4,7 +4,7 @@ import { createShellResult } from "../setup";
 
 describe("newAction", () => {
   const createMocks = () => ({
-    branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(false)),
+    branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(branch === "master")),
     fetch: mock((repo: string) => Promise.resolve()),
     trackBranch: mock((repo: string, branch: string) => Promise.resolve()),
     localBranch: mock((repo: string, branch: string, base: string) => Promise.resolve()),

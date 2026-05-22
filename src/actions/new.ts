@@ -77,6 +77,8 @@ export async function newAction(
 
   const s = spinner(`Criando worktree da branch ${branch}...`).start();
   const branchSlug = slugify(branch);
+  const baseOriginBranch = baseBranch.replace(/^origin\//, "");
+  const baseRef = `origin/${baseOriginBranch}`;
 
   // Validate repos
   for (const [repo, name] of [
@@ -95,16 +97,16 @@ export async function newAction(
     }
   }
 
-  // Validate base branch
+  // Validate base branch on origin. Local base branches may be absent after rm.
   for (const repo of [BACKEND_REPO, FRONTEND_REPO]) {
-    if (!localExists(repo, baseBranch)) {
+    if (!(await branchExistsOrigin(repo, baseOriginBranch))) {
       s.stop();
-      throw new Error(`Branch base '${baseBranch}' não existe em ${repo}`);
+      throw new Error(`Branch base '${baseRef}' não existe em ${repo}`);
     }
   }
-  if (withManager && !localExists(MANAGER_REPO, baseBranch)) {
+  if (withManager && !(await branchExistsOrigin(MANAGER_REPO, baseOriginBranch))) {
     s.stop();
-    throw new Error(`Branch base '${baseBranch}' não existe no manager`);
+    throw new Error(`Branch base '${baseRef}' não existe no manager`);
   }
 
   await ensureWorkspaceBootstrap();
@@ -132,7 +134,7 @@ export async function newAction(
       }
     } else {
       if (!localExists(repo, branch)) {
-        await localBranch(repo, branch, baseBranch);
+        await localBranch(repo, branch, baseRef);
       }
     }
     const wtPath = join(WORKTREES_DIR, branch, name.toLowerCase());
@@ -173,7 +175,7 @@ export async function newAction(
     DB_NAME,
     COMPOSE_PROJECT: composeProject,
     CREATED_AT: new Date().toISOString(),
-    SEEDED_FROM: baseBranch,
+    SEEDED_FROM: baseOriginBranch,
   });
 
   // Copy templates

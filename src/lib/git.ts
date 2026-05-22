@@ -40,11 +40,21 @@ export async function createWorktree(
   path: string,
   branch: string,
 ): Promise<void> {
-  await execChecked(
-    ["git", "-C", repo, "worktree", "add", path, branch],
-    { silent: true },
-    `criar worktree ${path}`,
-  );
+  const args = ["git", "-C", repo, "worktree", "add", path, branch];
+  try {
+    await execChecked(args, { silent: true }, `criar worktree ${path}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes("is a missing but already registered worktree")) {
+      throw error;
+    }
+
+    await execChecked(
+      ["git", "-C", repo, "worktree", "add", "-f", path, branch],
+      { silent: true },
+      `criar worktree ${path}`,
+    );
+  }
 }
 
 export async function removeWorktree(

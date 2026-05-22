@@ -20,7 +20,7 @@ describe("addManagerAction", () => {
       DB_NAME: "app_database",
     })),
     fetch: mock(() => Promise.resolve()),
-    branchExistsOrigin: mock(() => Promise.resolve(false)),
+    branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(branch === "master")),
     localExists: mock((repo: string, branch: string): boolean => branch === "master"),
     trackBranch: mock(() => Promise.resolve()),
     localBranch: mock(() => Promise.resolve()),
@@ -40,7 +40,7 @@ describe("addManagerAction", () => {
     await addManagerAction("NS-927", {}, deps);
 
     expect(deps.fetch).toHaveBeenCalled();
-    expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "master");
+    expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/master");
     expect(deps.worktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/manager"), "NS-927");
     expect(deps.writeText).toHaveBeenCalledWith(expect.stringContaining(".workspace.env"), expect.stringContaining('MANAGER_PORT="3020"'));
     expect(deps.copyTpl).toHaveBeenCalledWith(
@@ -59,6 +59,15 @@ describe("addManagerAction", () => {
 
     expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
     expect(deps.localBranch).not.toHaveBeenCalled();
+  });
+
+  test("creates manager branch from requested origin base", async () => {
+    const deps = createDeps();
+    deps.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(branch === "develop"));
+
+    await addManagerAction("NS-927", { base: "develop" }, deps);
+
+    expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/develop");
   });
 
   test("uses requested manager port", async () => {

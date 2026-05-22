@@ -7,7 +7,7 @@ class ProcessExit extends Error {}
 
 describe("newAction paths", () => {
   const createMocks = () => ({
-    branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(false)),
+    branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(branch === "master")),
     fetch: mock((repo: string) => Promise.resolve()),
     trackBranch: mock((repo: string, branch: string) => Promise.resolve()),
     localBranch: mock((repo: string, branch: string, base: string) => Promise.resolve()),
@@ -21,7 +21,9 @@ describe("newAction paths", () => {
 
   test("uses existing remote branch", async () => {
     const mocks = createMocks();
-    mocks.branchExistsOrigin = mock((repo: string) => Promise.resolve(repo.includes("backend")));
+    mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
+      branch === "master" || (branch === "feat-123" && repo.includes("backend"))
+    ));
     mocks.localExists = mock((repo: string, branch: string) => branch === "master");
     const originalFile = Bun.file;
     Bun.file = mock((path: string) => ({
@@ -40,9 +42,31 @@ describe("newAction paths", () => {
     }
   });
 
+  test("creates local branches from origin base", async () => {
+    const mocks = createMocks();
+    mocks.localExists = mock((repo: string, branch: string) => branch === "master");
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(
+        path.includes(".git") ||
+        !path.includes("worktrees") ||
+        path.includes("templates")
+      ),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", false, mocks);
+      expect(mocks.localBranch).toHaveBeenCalledWith(expect.any(String), "feat-123", "origin/master");
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
   test("exits when base branch missing in backend", async () => {
     const mocks = createMocks();
-    mocks.localExists = mock((repo: string) => !repo.includes("backend"));
+    mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
+      branch === "develop" && !repo.includes("backend")
+    ));
     const originalFile = Bun.file;
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(path.includes(".git")),
@@ -52,7 +76,7 @@ describe("newAction paths", () => {
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
-      expect((e as Error).message).toContain("não existe");
+      expect((e as Error).message).toContain("origin/develop");
     } finally {
       Bun.file = originalFile;
     }
@@ -60,7 +84,9 @@ describe("newAction paths", () => {
 
   test("exits when base branch missing in manager", async () => {
     const mocks = createMocks();
-    mocks.localExists = mock((repo: string) => !repo.includes("manager"));
+    mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
+      branch === "master" && !repo.includes("manager")
+    ));
     const originalFile = Bun.file;
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(path.includes(".git")),
@@ -70,7 +96,7 @@ describe("newAction paths", () => {
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
-      expect((e as Error).message).toContain("não existe");
+      expect((e as Error).message).toContain("origin/master");
     } finally {
       Bun.file = originalFile;
     }

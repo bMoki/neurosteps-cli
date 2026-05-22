@@ -1,3 +1,9 @@
+#IA
+.claude
+.opencode
+CLAUDE.md
+graphify-out
+
 # dependencies (bun install)
 node_modules
 

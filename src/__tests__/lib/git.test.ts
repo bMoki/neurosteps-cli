@@ -61,13 +61,65 @@ describe("git", () => {
 
   test("createWorktree calls git worktree add", async () => {
     const originalSpawn = Bun.spawn;
-    Bun.spawn = mock(() => ({
+    const spawn = mock(() => ({
       exited: Promise.resolve(0),
     })) as any;
+    Bun.spawn = spawn;
 
-    await createWorktree("/repo", "/path", "feature");
+    try {
+      await createWorktree("/repo", "/path", "feature");
+      expect(spawn.mock.calls[0][0]).toEqual([
+        "git",
+        "-C",
+        "/repo",
+        "worktree",
+        "add",
+        "/path",
+        "feature",
+      ]);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
+  });
 
-    Bun.spawn = originalSpawn;
+  test("createWorktree retries with force when worktree registration is stale", async () => {
+    const originalSpawn = Bun.spawn;
+    let calls = 0;
+    const spawn = mock(() => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          exited: Promise.resolve(128),
+          stdout: new ReadableStream({ start(c) { c.close(); } }),
+          stderr: new ReadableStream({
+            start(c) {
+              c.enqueue(new TextEncoder().encode("fatal: '/path' is a missing but already registered worktree"));
+              c.close();
+            },
+          }),
+        };
+      }
+
+      return { exited: Promise.resolve(0) };
+    }) as any;
+    Bun.spawn = spawn;
+
+    try {
+      await createWorktree("/repo", "/path", "feature");
+      expect(spawn).toHaveBeenCalledTimes(2);
+      expect(spawn.mock.calls[1][0]).toEqual([
+        "git",
+        "-C",
+        "/repo",
+        "worktree",
+        "add",
+        "-f",
+        "/path",
+        "feature",
+      ]);
+    } finally {
+      Bun.spawn = originalSpawn;
+    }
   });
 
   test("removeWorktree calls git worktree remove", async () => {

@@ -110,6 +110,8 @@ export async function addManagerAction(
   const workspaceEnv = join(wtDir, ".workspace.env");
   const managerDir = join(wtDir, "manager");
   const baseBranch = opts.base || "master";
+  const baseOriginBranch = baseBranch.replace(/^origin\//, "");
+  const baseRef = `origin/${baseOriginBranch}`;
 
   const env = await readEnv(branch);
   if (!env || !exists(workspaceEnv)) {
@@ -145,11 +147,11 @@ export async function addManagerAction(
       await trackBranch(MANAGER_REPO, branch);
     }
   } else if (!localExists(MANAGER_REPO, branch)) {
-    if (!localExists(MANAGER_REPO, baseBranch)) {
-      s.fail(`Branch base '${baseBranch}' não existe no manager`);
+    if (!(await branchExistsOrigin(MANAGER_REPO, baseOriginBranch))) {
+      s.fail(`Branch base '${baseRef}' não existe no manager`);
       process.exit(1);
     }
-    await localBranch(MANAGER_REPO, branch, baseBranch);
+    await localBranch(MANAGER_REPO, branch, baseRef);
   }
 
   s.text = "Criando worktree do manager...";

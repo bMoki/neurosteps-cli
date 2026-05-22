@@ -36,7 +36,7 @@ Com os valores padrão atuais, esses caminhos significam:
 | Frontend | `~/Developer/frontend` |
 | Manager | `~/Developer/neurosteps-manager` |
 
-O `ns new <branch>` usa `master` como branch base por padrão. Essa branch precisa existir localmente em cada repositório usado. O repositório base não precisa estar com `master` checkoutado, mas a branch local `master` precisa existir.
+O `ns new <branch>` usa `origin/master` como branch base por padrão. Essa branch precisa existir no origin de cada repositório usado; a branch local `master` não é necessária.
 
 Para criar uma workspace a partir de outra base, informe a base explicitamente:
 
@@ -248,10 +248,10 @@ ns rm minha-branch --force
 | Comando | O que faz | Observação |
 | --- | --- | --- |
 | `ns new <branch>` | Cria worktrees configuradas para backend, frontend e manager. | Usa `master` como base. |
-| `ns new <branch> <base>` | Cria worktrees a partir de outra branch base. | A base precisa existir localmente nos repositórios usados. |
+| `ns new <branch> <base>` | Cria worktrees a partir de `origin/<base>`. | A base precisa existir no origin dos repositórios usados. |
 | `ns new <branch> --no-manager` | Cria workspace sem manager. | Manager pode ser adicionado depois. |
 | `ns add manager <branch>` | Adiciona manager a uma workspace existente. | Usa `master` como base por padrão. |
-| `ns add manager <branch> --base <base>` | Adiciona manager a partir de outra base. | A base precisa existir no repositório manager. |
+| `ns add manager <branch> --base <base>` | Adiciona manager a partir de `origin/<base>`. | A base precisa existir no origin do repositório manager. |
 | `ns add manager <branch> --port <port>` | Adiciona manager com porta específica. | Atualiza `.workspace.env`. |
 | `ns rm <branch>` | Remove worktrees e branches locais. | Pede confirmação. |
 | `ns rm <branch> --purge` | Remove também o volume Docker da branch. | Destrutivo para o banco local. |
@@ -377,7 +377,7 @@ O `ns init` ajuda a montar esse arquivo. Ele pergunta o diretório base, detecta
 
 ### O que o `ns new` faz
 
-`ns new <branch>` valida que os repositórios base existem, valida que a branch base existe localmente, busca origin, cria ou reaproveita branches locais e cria worktrees em `NS_BASE_DIR/worktrees/<branch>`.
+`ns new <branch>` valida que os repositórios base existem, valida que `origin/<base>` existe, busca origin, cria ou reaproveita branches locais e cria worktrees em `NS_BASE_DIR/worktrees/<branch>`.
 
 Depois disso, ele aloca portas, gera `.workspace.env`, cria `docker-compose.yml`, aplica templates de backend/frontend/manager, cria arquivos de VS Code e IntelliJ e tenta copiar o volume `NS_SEED_VOLUME` para o volume da branch.
 
