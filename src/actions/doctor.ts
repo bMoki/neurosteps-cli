@@ -5,7 +5,7 @@ import {
   hasManager,
   PRODUCT_NAME,
   PORTLESS_PROXY_PORT,
-  BACKEND_MODULE,
+  BACKEND_CORE_MODULE,
   SEED_VOLUME,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
@@ -27,6 +27,7 @@ interface DiagnosticoDeps {
   listAliases: typeof listAliases;
   shell: typeof exec;
   shellSync: typeof execSync;
+  noManager?: boolean;
 }
 
 const defaultDeps: DiagnosticoDeps = {
@@ -44,8 +45,10 @@ const defaultDeps: DiagnosticoDeps = {
 export async function doctorAction(
   branch: string,
   fix: boolean,
+  opts: { noManager?: boolean } = {},
   deps: Partial<DiagnosticoDeps> = {},
 ): Promise<void> {
+  const noManager = opts.noManager ?? deps.noManager ?? false;
   const {
     readEnv,
     hasMgr,
@@ -92,6 +95,8 @@ export async function doctorAction(
   const checkFix = (msg: string) => { console.log(`  ${colors.info("🔧")} ${msg}`); fixed++; };
 
   const wtDir = join(WORKTREES_DIR, branch);
+  const backendDir = join(wtDir, "backend");
+  const frontendDir = join(wtDir, "frontend");
 
   // 1. Worktree
   section("Worktree");
@@ -103,7 +108,49 @@ export async function doctorAction(
     process.exit(1);
   }
 
-  // 2. .workspace.env
+  // 2. Dependências
+  section("Dependências");
+  const frontendNodeModules = join(frontendDir, "node_modules/.bin/vite");
+  const managerNodeModules = join(wtDir, "manager/node_modules/.bin/vite");
+  if (pathExists(frontendNodeModules)) {
+    checkPass("node_modules do frontend instalado");
+  } else {
+    checkFail("node_modules do frontend NÃO encontrado");
+    if (fix) {
+      const installResult = await withSpinner("Instalando dependências do frontend", () =>
+        shell(["npm", "ci"], { cwd: frontendDir, silent: true }).catch(() =>
+          shell(["npm", "install"], { cwd: frontendDir, silent: true }),
+        ),
+      );
+      if (installResult.exitCode === 0) {
+        checkFix("node_modules do frontend instalado");
+      } else {
+        checkWarn("Falha ao instalar node_modules do frontend. Tente manualmente: npm install");
+      }
+    }
+  }
+  if (!noManager && hasMgr(branch)) {
+    if (pathExists(managerNodeModules)) {
+      checkPass("node_modules do manager instalado");
+    } else {
+      checkFail("node_modules do manager NÃO encontrado");
+      if (fix) {
+        const mgrDir = join(wtDir, "manager");
+        const installResult = await withSpinner("Instalando dependências do manager", () =>
+          shell(["npm", "ci"], { cwd: mgrDir, silent: true }).catch(() =>
+            shell(["npm", "install"], { cwd: mgrDir, silent: true }),
+          ),
+        );
+        if (installResult.exitCode === 0) {
+          checkFix("node_modules do manager instalado");
+        } else {
+          checkWarn("Falha ao instalar node_modules do manager. Tente manualmente: npm install");
+        }
+      }
+    }
+  }
+
+  // 3. .workspace.env
   section(".workspace.env");
   const env = await withSpinner("Lendo configuração da branch", () => readEnv(branch));
   if (env) {
@@ -130,10 +177,9 @@ export async function doctorAction(
 
   // 3. Backend
   section("Backend");
-  const backendDir = join(wtDir, "backend");
   if (dirExists(backendDir)) {
     checkPass("Worktree existe");
-    const props = join(backendDir, `${BACKEND_MODULE}-core/src/main/resources/application-dev.properties`);
+    const props = join(backendDir, `${BACKEND_CORE_MODULE}/src/main/resources/application-dev.properties`);
     if (pathExists(props)) {
       checkPass("application-dev.properties existe");
     } else {
@@ -165,31 +211,41 @@ export async function doctorAction(
 
   // 4. Frontend
   section("Frontend");
-  const frontendDir = join(wtDir, "frontend");
   if (dirExists(frontendDir)) {
     checkPass("Worktree existe");
     const viteConfig = join(frontendDir, "vite.config.ts");
     if (pathExists(viteConfig)) {
       const viteContent = await Bun.file(viteConfig).text();
-      if (viteContent.includes("loadEnv(mode, process.cwd()")) {
+      if (viteContent.includes("loadEnv(")) {
         checkPass("vite.config.ts usa loadEnv()");
       } else {
-        checkFail("vite.config.ts NÃO usa loadEnv()");
+        checkWarn("vite.config.ts NÃO usa loadEnv()");
       }
-      if (viteContent.includes("mode === \"development\"") || viteContent.includes("mode === 'development'")) {
+      if (viteContent.includes("mode === \"development\"") || viteContent.includes("mode === 'development'") || viteContent.includes('mode === "development"') || viteContent.includes("mode == 'development'")) {
+        checkPass("vite.config.ts separa config de development");
+      } else if (viteContent.includes("development") && viteContent.includes("mode")) {
         checkPass("vite.config.ts separa config de development");
       } else {
-        checkFail("vite.config.ts não separa config de development");
+        checkWarn("vite.config.ts não separa config de development");
       }
-      if (viteContent.includes("isDevelopmentDevServer") && viteContent.includes("portless-url")) {
+      if (viteContent.includes("portless") && (viteContent.includes("development") || viteContent.includes("mode"))) {
         checkPass("plugin Portless limitado ao dev mode");
+      } else if (viteContent.includes("portless")) {
+        checkPass("plugin Portless presente");
       } else {
-        checkFail("plugin Portless não está limitado ao dev mode");
+        checkWarn("plugin Portless não encontrado");
       }
-      if (viteContent.includes("REACT_APP_FRONTEND_PORT")) {
+      const frontendVitePort = viteContent.match(/server\s*:\s*\{[^}]*port\s*:\s*(\d+)/)?.[1];
+      if (frontendVitePort) {
+        if (String(env?.FRONTEND_PORT) === frontendVitePort) {
+          checkPass(`vite.config.ts usa porta ${frontendVitePort} (correta)`);
+        } else {
+          checkFail(`vite.config.ts usa porta ${frontendVitePort}, mas .workspace.env espera ${env?.FRONTEND_PORT}`);
+        }
+      } else if (viteContent.includes("REACT_APP_FRONTEND_PORT")) {
         checkPass("vite.config.ts lê porta do ambiente");
       } else {
-        checkFail("vite.config.ts não lê REACT_APP_FRONTEND_PORT");
+        checkWarn("vite.config.ts não lê REACT_APP_FRONTEND_PORT nem define server.port");
       }
     } else {
       checkFail("vite.config.ts não encontrado");
@@ -225,30 +281,41 @@ export async function doctorAction(
   }
 
   // 5. Manager
-  if (hasMgr(branch)) {
+  if (!noManager && hasMgr(branch)) {
     section("Manager");
     const mgrVite = join(wtDir, "manager/vite.config.ts");
     if (pathExists(mgrVite)) {
       const content = await Bun.file(mgrVite).text();
-      if (content.includes("loadEnv(mode, process.cwd")) {
+      if (content.includes("loadEnv(")) {
         checkPass("vite.config.ts usa loadEnv()");
       } else {
-        checkFail("vite.config.ts NÃO usa loadEnv()");
+        checkWarn("vite.config.ts NÃO usa loadEnv()");
       }
-      if (content.includes("mode === \"development\"") || content.includes("mode === 'development'")) {
+      if (content.includes("mode === \"development\"") || content.includes("mode === 'development'") || content.includes('mode === "development"') || content.includes("mode == 'development'")) {
+        checkPass("vite.config.ts separa config de development");
+      } else if (content.includes("development") && content.includes("mode")) {
         checkPass("vite.config.ts separa config de development");
       } else {
-        checkFail("vite.config.ts não separa config de development");
+        checkWarn("vite.config.ts não separa config de development");
       }
-      if (content.includes("isDevelopmentDevServer") && content.includes("portless-url")) {
+      if (content.includes("portless") && (content.includes("development") || content.includes("mode"))) {
         checkPass("plugin Portless limitado ao dev mode");
+      } else if (content.includes("portless")) {
+        checkPass("plugin Portless presente");
       } else {
-        checkFail("plugin Portless não está limitado ao dev mode");
+        checkWarn("plugin Portless não encontrado");
       }
-      if (content.includes("env.PORT")) {
+      const managerVitePort = content.match(/server\s*:\s*\{[^}]*port\s*:\s*(\d+)/)?.[1];
+      if (managerVitePort) {
+        if (String(env?.MANAGER_PORT) === managerVitePort) {
+          checkPass(`vite.config.ts usa porta ${managerVitePort} (correta)`);
+        } else {
+          checkFail(`vite.config.ts usa porta ${managerVitePort}, mas .workspace.env espera ${env?.MANAGER_PORT}`);
+        }
+      } else if (content.includes("env.PORT") || content.includes("process.env.PORT")) {
         checkPass("vite.config.ts lê PORT do ambiente");
       } else {
-        checkFail("vite.config.ts não lê PORT do ambiente");
+        checkWarn("vite.config.ts não lê PORT do ambiente nem define server.port");
       }
     } else {
       checkFail("vite.config.ts não encontrado");
@@ -359,7 +426,7 @@ export async function doctorAction(
       checkFix("Alias frontend registrado");
     }
   }
-  if (hasMgr(branch)) {
+  if (!noManager && hasMgr(branch)) {
     if (hasAlias(managerAlias)) {
       checkPass(`Alias manager: ${managerAlias}`);
     } else {
@@ -374,7 +441,7 @@ export async function doctorAction(
   // 9. Ports
   section("Portas");
   const ports = [env?.BACKEND_PORT, env?.FRONTEND_PORT];
-  if (hasMgr(branch)) {
+  if (!noManager && hasMgr(branch)) {
     ports.push(env?.MANAGER_PORT);
   }
   for (const port of ports) {

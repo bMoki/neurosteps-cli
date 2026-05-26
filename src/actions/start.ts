@@ -5,10 +5,14 @@ import {
   hasManager,
   PRODUCT_NAME,
   PORTLESS_PROXY_PORT,
-  BACKEND_MODULE,
+  BACKEND_CORE_MODULE,
 } from "../lib/config";
-import { formatShellCommand, spawnTerminal } from "../lib/shell";
+import { formatShellCommand, spawnTerminal, exec } from "../lib/shell";
 import { detail, emptyLine, hint, spinner, warn } from "../lib/logger";
+import { pathExists } from "../lib/filesystem";
+import { join } from "path";
+import { confirm } from "@inquirer/prompts";
+import { openAiApp } from "../lib/apps";
 import {
   BranchNotFoundError,
   setupBranchRuntime,
@@ -31,10 +35,12 @@ interface TerminalOpenResult {
 export interface StartActionDeps extends Partial<BranchSetupDeps> {
   spawnTerm?: typeof spawnTerminal;
   branchHasManager?: typeof hasManager;
+  aiFlag?: string;
+  noManager?: boolean;
 }
 
 export async function startAction(branch: string, deps: StartActionDeps = {}): Promise<void> {
-  const { spawnTerm = spawnTerminal, branchHasManager = hasManager, ...setupDeps } = deps;
+  const { spawnTerm = spawnTerminal, branchHasManager = hasManager, aiFlag, noManager = false, ...setupDeps } = deps;
   const s = spinner(`Iniciando ${branch}...`).start();
 
   const runtime = await setupBranchRuntime(branch, {
@@ -48,15 +54,66 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
       if (step === "portless:aliases") s.text = "Registrando aliases Portless...";
     },
   }, setupDeps).catch((error) => {
-    if (error instanceof BranchNotFoundError) {
-      s.fail(error.message);
-      process.exit(1);
-    }
+    s.fail(error instanceof Error ? error.message : String(error));
     throw error;
   });
 
+  s.text = "Verificando dependências...";
+  const frontendDir = resolveFrontendDir(branch);
+  const frontendNodeModules = join(frontendDir, "node_modules/.bin/vite");
+  if (!pathExists(frontendNodeModules)) {
+    warn("node_modules do frontend não encontrado");
+    if (process.stdout.isTTY) {
+      const shouldInstall = await confirm({
+        message: "Instalar dependências do frontend agora?",
+        default: true,
+      });
+      if (shouldInstall) {
+        s.text = "Instalando dependências do frontend...";
+        const result = await exec(["npm", "ci"], { cwd: frontendDir, silent: true }).catch(() =>
+          exec(["npm", "install"], { cwd: frontendDir, silent: true }),
+        );
+        if (result.exitCode === 0) {
+          s.text = "Dependências do frontend instaladas";
+        } else {
+          warn("Falha ao instalar dependências do frontend");
+          warn("Rode manualmente: npm install em " + frontendDir);
+        }
+      }
+    } else {
+      hint("Rode manualmente: npm install em " + frontendDir);
+    }
+  }
+  if (!noManager && branchHasManager(branch)) {
+    const managerDir = resolveManagerDir(branch);
+    const managerNodeModules = join(managerDir, "node_modules/.bin/vite");
+    if (!pathExists(managerNodeModules)) {
+      warn("node_modules do manager não encontrado");
+      if (process.stdout.isTTY) {
+        const shouldInstall = await confirm({
+          message: "Instalar dependências do manager agora?",
+          default: true,
+        });
+        if (shouldInstall) {
+          s.text = "Instalando dependências do manager...";
+          const result = await exec(["npm", "ci"], { cwd: managerDir, silent: true }).catch(() =>
+            exec(["npm", "install"], { cwd: managerDir, silent: true }),
+          );
+          if (result.exitCode === 0) {
+            s.text = "Dependências do manager instaladas";
+          } else {
+            warn("Falha ao instalar dependências do manager");
+            warn("Rode manualmente: npm install em " + managerDir);
+          }
+        }
+      } else {
+        hint("Rode manualmente: npm install em " + managerDir);
+      }
+    }
+  }
+
   s.text = "Abrindo terminais...";
-  const services = buildStartServices(branch, runtime, branchHasManager(branch));
+  const services = buildStartServices(branch, runtime, !noManager && branchHasManager(branch));
   const terminalResult = await openServiceTerminals(services, spawnTerm);
 
   if (terminalResult.error) {
@@ -84,6 +141,16 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     }
   }
 
+  if (aiFlag) {
+    try {
+      s.text = `Abrindo ${aiFlag}...`;
+      await openAiApp(aiFlag, resolveBackendDir(branch));
+      detail("AI", aiFlag + " aberto");
+    } catch (error) {
+      warn(`Não foi possível abrir ${aiFlag}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   emptyLine();
   hint(`Próximo passo: ns status ${branch}  # ver status dos serviços`);
 }
@@ -102,7 +169,7 @@ function buildStartServices(branch: string, runtime: BranchRuntime, includeManag
         QUARKUS_DATASOURCE_PASSWORD: runtime.env.DB_PASSWORD,
         QUARKUS_PROFILE: "dev",
       },
-      command: `mvn -pl ${BACKEND_MODULE}-core quarkus:dev`,
+      command: `mvn -pl ${BACKEND_CORE_MODULE} quarkus:dev`,
     },
     {
       label: "Frontend",

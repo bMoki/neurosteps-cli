@@ -18,6 +18,8 @@ const APP_REGISTRY: Record<string, string[]> = {
   tableplus: ["TablePlus.app", "TablePlus Setapp.app"],
   dbeaver: ["DBeaver.app", "DBeaverUltimate.app"],
   webstorm: ["WebStorm.app"],
+  claude: ["Claude.app"],
+  opencode: ["OpenCode.app"],
 };
 
 export function appDisplayName(key: string): string {
@@ -30,6 +32,8 @@ export function appDisplayName(key: string): string {
     tableplus: "TablePlus",
     dbeaver: "DBeaver",
     webstorm: "WebStorm",
+    claude: "Claude",
+    opencode: "OpenCode",
   };
   return names[key] || key;
 }
@@ -183,4 +187,35 @@ export async function ensureDatabaseAppConfigured(): Promise<string> {
   settings.apps[chosen] = appPath;
   await writeSettings(settings);
   return chosen;
+}
+
+// ─── AI Assistants ───
+
+import { openApp, spawnTerminal, execSync } from "./shell";
+
+export function isAiAppKey(key: string): boolean {
+  return true; // any key is potentially a CLI command
+}
+
+export async function openAiApp(key: string, cwd?: string): Promise<void> {
+  // 1. Try CLI command in PATH
+  try {
+    const whichResult = execSync(["which", key], { silent: true });
+    if (whichResult.exitCode === 0 && whichResult.stdout.trim()) {
+      await spawnTerminal(cwd || process.cwd(), {}, key);
+      return;
+    }
+  } catch {
+    // not found in PATH, continue to app fallback
+  }
+
+  // 2. Try .app bundle
+  const appPath = await resolveAppPath(key);
+  if (appPath) {
+    await openApp(appDisplayName(key), cwd);
+    return;
+  }
+
+  // 3. Nothing found
+  throw new Error(`IA '${key}' não encontrada. Instale o comando '${key}' no PATH ou o app '${key}.app'`);
 }

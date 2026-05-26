@@ -41,6 +41,51 @@ function classifyRepo(name: string): "backend" | "frontend" | "manager" | "other
   return "other";
 }
 
+function detectBackendModule(repoPath: string): string | undefined {
+  try {
+    const pomPath = join(repoPath, "pom.xml");
+    const content = Bun.file(pomPath).textSync();
+    const match = content.match(/<artifactId>([^<]+)<\/artifactId>/);
+    return match?.[1];
+  } catch {
+    return undefined;
+  }
+}
+
+function detectBackendCoreModule(repoPath: string): string | undefined {
+  try {
+    const pomPath = join(repoPath, "pom.xml");
+    const content = Bun.file(pomPath).textSync();
+    const modulesMatch = content.match(/<modules>([\s\S]*?)<\/modules>/);
+    if (modulesMatch) {
+      const modulesContent = modulesMatch[1];
+      const moduleMatches = modulesContent.match(/<module>([^<]+)<\/module>/g);
+      if (moduleMatches) {
+        // Prefer module with "-core" suffix, fallback to first module
+        const coreModule = moduleMatches.find((m) => m.includes("-core"));
+        if (coreModule) {
+          return coreModule.replace(/<module>|<\/module>/g, "").trim();
+        }
+        return moduleMatches[0].replace(/<module>|<\/module>/g, "").trim();
+      }
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function detectProductNameFromFrontend(repoPath: string): string | undefined {
+  try {
+    const packageJsonPath = join(repoPath, "package.json");
+    const content = Bun.file(packageJsonPath).textSync();
+    const parsed = JSON.parse(content);
+    return parsed.name;
+  } catch {
+    return undefined;
+  }
+}
+
 interface InitOptions {
   reconfig?: boolean;
 }
@@ -148,54 +193,69 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
     join(homedir(), "Developer"),
   );
 
-  // 2. Required identity vars
+  // 2. Auto-detect repos in base dir
+  const detected = detectGitRepos(baseDir);
+  const detectedBackend = detected.find((r) => classifyRepo(r.name) === "backend");
+  const detectedFrontend = detected.find((r) => classifyRepo(r.name) === "frontend");
+  const detectedManager = detected.find((r) => classifyRepo(r.name) === "manager");
+
+  // Auto-detect values from repos
+  const autoBackendModule = detectedBackend ? detectBackendModule(detectedBackend.path) : undefined;
+  const autoBackendCoreModule = detectedBackend ? detectBackendCoreModule(detectedBackend.path) : undefined;
+  const autoProductName = detectedFrontend ? detectProductNameFromFrontend(detectedFrontend.path) : undefined;
+
+  // 3. Required identity vars — use detected values as defaults
   const productName = await askIfNeeded(
     "NS_PRODUCT_NAME",
     "Nome do produto (para aliases, volumes, containers):",
+    autoProductName || "",
+  );
+
+  const backendModule = await askIfNeeded(
+    "NS_BACKEND_MODULE",
+    "Nome do módulo backend (ex: scalemed):",
+    autoBackendModule || "",
   );
 
   await askIfNeeded(
-    "NS_BACKEND_MODULE",
-    "Nome do módulo backend (ex: scalemed):",
+    "NS_BACKEND_CORE_MODULE",
+    "Nome do módulo core do backend (ex: scalemed-core):",
+    autoBackendCoreModule || `${backendModule}-core`,
   );
 
   const backendRepoName = await askIfNeeded(
     "NS_BACKEND_REPO_NAME",
     "Nome da pasta do repo backend:",
+    detectedBackend?.name || "",
   );
 
   await askIfNeeded(
     "NS_MANAGER_REPO_NAME",
     "Nome da pasta do repo manager:",
+    detectedManager?.name || "",
   );
 
-  // 3. Detect repos
+  // 5. Confirm detected repo paths
   console.log("");
-  info("Detectando repos em " + baseDir + "...");
-  const detected = detectGitRepos(baseDir);
-  const backend = detected.find((r) => classifyRepo(r.name) === "backend");
-  const frontend = detected.find((r) => classifyRepo(r.name) === "frontend");
-  const manager = detected.find((r) => classifyRepo(r.name) === "manager");
+  info("Repos detectados em " + baseDir + ":");
+  if (detectedBackend) ok(`  [backend] ${detectedBackend.name}`);
+  if (detectedFrontend) ok(`  [frontend] ${detectedFrontend.name}`);
+  if (detectedManager) ok(`  [manager] ${detectedManager.name}`);
 
-  if (detected.length > 0) {
-    for (const repo of detected) {
-      const type = classifyRepo(repo.name);
-      ok(`  [${type}] ${repo.name}`);
-    }
-
+  if (detectedBackend || detectedFrontend || detectedManager) {
     const useDetected = await confirm({
       message: "Usar caminhos detectados?",
       default: true,
     });
 
     if (useDetected) {
-      if (backend) config.NS_BACKEND_REPO = backend.path;
-      if (frontend) config.NS_FRONTEND_REPO = frontend.path;
-      if (manager) config.NS_MANAGER_REPO = manager.path;
+      if (detectedBackend) config.NS_BACKEND_REPO = detectedBackend.path;
+      if (detectedFrontend) config.NS_FRONTEND_REPO = detectedFrontend.path;
+      if (detectedManager) config.NS_MANAGER_REPO = detectedManager.path;
     }
   }
 
-  // 4. Seed volume
+  // 6. Seed volume
   console.log("");
   await askIfNeeded(
     "NS_SEED_VOLUME",
@@ -203,7 +263,7 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
     `${backendRepoName}_${productName}_bd_volume`,
   );
 
-  // 5. Advanced config (optional)
+  // 7. Advanced config (optional)
   console.log("");
   const advanced = await confirm({
     message: "Configurar portas e credenciais avançadas?",
@@ -295,6 +355,7 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
     NS_BASE_DIR: String(config.NS_BASE_DIR ?? existing.NS_BASE_DIR ?? join(homedir(), "Developer")),
     NS_PRODUCT_NAME: String(config.NS_PRODUCT_NAME ?? existing.NS_PRODUCT_NAME ?? ""),
     NS_BACKEND_MODULE: String(config.NS_BACKEND_MODULE ?? existing.NS_BACKEND_MODULE ?? ""),
+    NS_BACKEND_CORE_MODULE: String(config.NS_BACKEND_CORE_MODULE ?? existing.NS_BACKEND_CORE_MODULE ?? `${String(config.NS_BACKEND_MODULE ?? existing.NS_BACKEND_MODULE ?? "")}-core`),
     NS_BACKEND_REPO_NAME: String(config.NS_BACKEND_REPO_NAME ?? existing.NS_BACKEND_REPO_NAME ?? ""),
     NS_MANAGER_REPO_NAME: String(config.NS_MANAGER_REPO_NAME ?? existing.NS_MANAGER_REPO_NAME ?? ""),
     NS_SEED_VOLUME: String(config.NS_SEED_VOLUME ?? existing.NS_SEED_VOLUME ?? ""),
