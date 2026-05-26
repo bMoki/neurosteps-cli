@@ -13,6 +13,7 @@ const envSchema = z.object({
   // ─── Identidade do produto (OBRIGATÓRIAS) ───
   NS_PRODUCT_NAME: z.string().min(1, "NS_PRODUCT_NAME é obrigatória"),
   NS_BACKEND_MODULE: z.string().min(1, "NS_BACKEND_MODULE é obrigatória"),
+  NS_BACKEND_CORE_MODULE: z.string().optional(),
   NS_BACKEND_REPO_NAME: z.string().min(1, "NS_BACKEND_REPO_NAME é obrigatória"),
   NS_MANAGER_REPO_NAME: z.string().min(1, "NS_MANAGER_REPO_NAME é obrigatória"),
 
@@ -127,6 +128,7 @@ export let SEED_VOLUME: string;
 
 export let PRODUCT_NAME: string;
 export let BACKEND_MODULE: string;
+export let BACKEND_CORE_MODULE: string;
 
 function applyEnv(nextEnv: EnvVars): void {
   _env = nextEnv;
@@ -155,6 +157,7 @@ function applyEnv(nextEnv: EnvVars): void {
 
   PRODUCT_NAME = env.NS_PRODUCT_NAME;
   BACKEND_MODULE = env.NS_BACKEND_MODULE;
+  BACKEND_CORE_MODULE = env.NS_BACKEND_CORE_MODULE || `${env.NS_BACKEND_MODULE}-core`;
 }
 
 // Synchronous load on first import
