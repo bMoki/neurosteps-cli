@@ -5,5 +5,8 @@ export function prepareCommand(): Command {
   return new Command("prepare")
     .description("Prepara DB + aliases Portless")
     .argument("<branch>", "nome da branch")
-    .action(prepareAction);
+    .option("--no-manager", "não prepara o repo manager")
+    .action(async (branch, opts) => {
+      await prepareAction(branch, { noManager: opts.manager === false });
+    });
 }

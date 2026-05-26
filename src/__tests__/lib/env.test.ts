@@ -23,6 +23,7 @@ const trackedEnvKeys = [
   "NS_BASE_DIR",
   "NS_PRODUCT_NAME",
   "NS_BACKEND_MODULE",
+  "NS_BACKEND_CORE_MODULE",
   "NS_BACKEND_REPO_NAME",
   "NS_MANAGER_REPO_NAME",
   "NS_SEED_VOLUME",
@@ -71,7 +72,8 @@ describe("env reload", () => {
       {
         NS_BASE_DIR: "/tmp/ns-reload-one",
         NS_PRODUCT_NAME: "alpha",
-        NS_BACKEND_MODULE: "alpha-core",
+        NS_BACKEND_MODULE: "alpha",
+        NS_BACKEND_CORE_MODULE: "alpha-core",
         NS_BACKEND_REPO_NAME: "alpha-backend",
         NS_MANAGER_REPO_NAME: "alpha-manager",
         NS_SEED_VOLUME: "alpha_seed",
@@ -111,7 +113,8 @@ describe("env reload", () => {
       {
         NS_BASE_DIR: "/tmp/ns-config-reexport",
         NS_PRODUCT_NAME: "gamma",
-        NS_BACKEND_MODULE: "gamma-core",
+        NS_BACKEND_MODULE: "gamma",
+        NS_BACKEND_CORE_MODULE: "gamma-core",
         NS_BACKEND_REPO_NAME: "gamma-backend",
         NS_MANAGER_REPO_NAME: "gamma-manager",
         NS_SEED_VOLUME: "gamma_seed",

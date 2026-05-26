@@ -9,7 +9,7 @@ export function newCommand(): Command {
     .argument("[base-branch]", "branch base (default: master)")
     .option("--no-manager", "não inclui o repo manager")
     .action(async (branch, baseBranch, opts) => {
-      await newAction(branch, baseBranch || "master", !opts.noManager);
+      await newAction(branch, baseBranch || "master", opts.manager !== false);
     });
 }
 

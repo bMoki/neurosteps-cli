@@ -159,7 +159,7 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
   <component name="MavenProjectsManager">
     <option name="originalFiles">
       <list>
-        <option value="$PROJECT_DIR$/backend/{{BACKEND_MODULE}}-core/pom.xml" />
+        <option value="$PROJECT_DIR$/backend/{{BACKEND_CORE_MODULE}}/pom.xml" />
       </list>
     </option>
   </component>
@@ -170,7 +170,7 @@ VITE_APP_URL=https://{{BRANCH_SLUG}}.manager.{{PRODUCT_NAME}}.localhost:{{PORTLE
   "runConfigurations/Backend.xml": {
     content: `<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend {{BRANCH_NAME}}" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/{{DB_NAME}} QUARKUS_DATASOURCE_USERNAME={{DB_USER}} QUARKUS_DATASOURCE_PASSWORD={{DB_PASSWORD}} QUARKUS_PROFILE=dev mvn -pl {{BACKEND_MODULE}}-core quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
+    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/{{DB_NAME}} QUARKUS_DATASOURCE_USERNAME={{DB_USER}} QUARKUS_DATASOURCE_PASSWORD={{DB_PASSWORD}} QUARKUS_PROFILE=dev mvn -pl {{BACKEND_CORE_MODULE}} quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />
@@ -249,7 +249,7 @@ workspace.branch.name={{BRANCH_NAME}}
 `],
   "runConfigurations/Backend.xml": [`<component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Backend {{BRANCH_NAME}}" type="ShConfigurationType">
-    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/app_database QUARKUS_PROFILE=dev mvn -pl {{BACKEND_MODULE}}-core quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
+    <option name="SCRIPT_TEXT" value="cd &quot;$PROJECT_DIR$/backend&quot; &amp;&amp; QUARKUS_HTTP_PORT={{BACKEND_PORT}} QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://localhost:{{DB_PORT}}/app_database QUARKUS_PROFILE=dev mvn -pl {{BACKEND_CORE_MODULE}} quarkus:dev -Ddebug={{BACKEND_DEBUG_PORT}}" />
     <option name="INDEPENDENT_SCRIPT_PATH" value="true" />
     <option name="SCRIPT_PATH" value="" />
     <option name="SCRIPT_OPTIONS" value="" />

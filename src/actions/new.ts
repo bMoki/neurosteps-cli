@@ -4,6 +4,7 @@ import {
   PORTLESS_PROXY_PORT,
   PRODUCT_NAME,
   BACKEND_MODULE,
+  BACKEND_CORE_MODULE,
   DB_USER,
   DB_PASSWORD,
   DB_NAME,
@@ -179,7 +180,7 @@ export async function newAction(
   });
 
   // Copy templates
-  const backendProps = join(WORKTREES_DIR, branch, `backend/${BACKEND_MODULE}-core/src/main/resources/application-dev.properties`);
+  const backendProps = join(WORKTREES_DIR, branch, `backend/${BACKEND_CORE_MODULE}/src/main/resources/application-dev.properties`);
   await shell(["mkdir", "-p", join(backendProps, "..")], { silent: true });
   await copyTemplate(join(WORKSPACE_DIR, "templates/backend-application-dev.properties"), backendProps, {
     DB_PORT: String(ports.db),
