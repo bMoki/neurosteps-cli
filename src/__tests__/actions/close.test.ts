@@ -53,11 +53,19 @@ describe("closeAction", () => {
     expect(exec).toHaveBeenCalledWith(["kill", "-9", "101"], { silent: true });
     expect(exec).toHaveBeenCalledWith(["kill", "-9", "201"], { silent: true });
     expect(exec).toHaveBeenCalledWith(["kill", "-9", "301"], { silent: true });
+    const expectedScript = `if application "Visual Studio Code" is running then
+  tell application "Visual Studio Code"
+    repeat with matchingWindow in (every window whose name contains "feat-123")
+      close matchingWindow
+    end repeat
+  end tell
+end if`;
+
     expect(execChecked).toHaveBeenCalledWith(
       [
         "osascript",
         "-e",
-        'tell application "Visual Studio Code" to close (every window whose name contains "feat-123")',
+        expectedScript,
       ],
       { silent: true },
       "fechar janelas do Visual Studio Code no macOS",
@@ -84,5 +92,25 @@ describe("closeAction", () => {
     expect(resolveDefaultIde).toHaveBeenCalled();
     expect(resolveAppPath).toHaveBeenCalledWith("vscode");
     expect(appDisplayName).toHaveBeenCalledWith("vscode");
+  });
+
+  test("generates an idempotent IDE close script", async () => {
+    const execChecked = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+
+    await closeAction("feat-123", { app: "intellij" }, {
+      readEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({ MANAGER_PORT: undefined }))),
+      composeDown: mock(() => Promise.resolve()),
+      rmAlias: mock(() => Promise.resolve()),
+      exec: mock((command: string[]) => Promise.resolve(createShellResult(command, { exitCode: 1 }))),
+      execChecked,
+      resolveDefaultIde: mock(() => Promise.resolve("vscode")),
+      resolveAppPath: mock(() => Promise.resolve("/Applications/IntelliJ IDEA.app")),
+      appDisplayName: mock(() => "IntelliJ IDEA"),
+    });
+
+    const script = execChecked.mock.calls[0]?.[0][2];
+    expect(script).toContain('if application "IntelliJ IDEA" is running then');
+    expect(script).toContain('repeat with matchingWindow in (every window whose name contains "feat-123")');
+    expect(script).toContain("close matchingWindow");
   });
 });

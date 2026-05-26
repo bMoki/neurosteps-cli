@@ -62,8 +62,25 @@ export async function closeAction(
   const appPath = await resolvePath(appKey);
   const ideDisplayName = appPath ? appPath.split("/").pop()?.replace(".app", "") || appName : appName;
 
-  const script = `tell application "${ideDisplayName}" to close (every window whose name contains "${branch}")`;
+  const script = closeMatchingWindowsScript(ideDisplayName, branch);
   await runChecked(["osascript", "-e", script], { silent: true }, `fechar janelas do ${ideDisplayName} no macOS`);
 
   s.succeed(`${branch} fechada no ${appName}`);
+}
+
+function closeMatchingWindowsScript(appName: string, branch: string): string {
+  const app = quoteAppleScriptString(appName);
+  const windowName = quoteAppleScriptString(branch);
+
+  return `if application ${app} is running then
+  tell application ${app}
+    repeat with matchingWindow in (every window whose name contains ${windowName})
+      close matchingWindow
+    end repeat
+  end tell
+end if`;
+}
+
+function quoteAppleScriptString(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 }
