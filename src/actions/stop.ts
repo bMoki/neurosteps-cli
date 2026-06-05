@@ -1,4 +1,5 @@
 import { spinner } from "../lib/logger";
+import { listBranches } from "../lib/config";
 import {
   type BranchShutdownDeps,
   BranchShutdownNotFoundError,
@@ -6,9 +7,22 @@ import {
 } from "./branch-shutdown";
 
 export async function stopAction(
-  branch: string,
+  branch: string | undefined,
+  opts: { all?: boolean },
   deps: Partial<BranchShutdownDeps> = {},
 ): Promise<void> {
+  if (opts.all) {
+    await stopAllAction(deps);
+    return;
+  }
+  if (!branch) {
+    spinner("").fail("Especifique uma branch ou use --all (-a)");
+    process.exit(1);
+  }
+  await stopSingleAction(branch, deps);
+}
+
+async function stopSingleAction(branch: string, deps: Partial<BranchShutdownDeps> = {}): Promise<void> {
   const s = spinner(`Parando ${branch}...`).start();
 
   try {
@@ -28,4 +42,43 @@ export async function stopAction(
   }
 
   s.succeed(`Serviços parados para ${branch}`);
+}
+
+async function stopAllAction(deps: Partial<BranchShutdownDeps> = {}): Promise<void> {
+  const branches = listBranches();
+
+  if (branches.length === 0) {
+    spinner("").info("Nenhuma branch encontrada.");
+    return;
+  }
+
+  const failures: { branch: string; message: string }[] = [];
+
+  for (const [i, branch] of branches.entries()) {
+    const prefix = `[${i + 1}/${branches.length}]`;
+    const s = spinner(`${prefix} Parando ${branch}...`).start();
+
+    try {
+      await shutdownBranchRuntime(branch, {
+        onStep: (step) => {
+          if (step === "database:stop") s.text = `${prefix} Parando PostgreSQL de ${branch}...`;
+          if (step === "portless:aliases") s.text = `${prefix} Removendo aliases de ${branch}...`;
+          if (step === "processes:stop") s.text = `${prefix} Encerrando processos de ${branch}...`;
+        },
+      }, deps);
+      s.succeed(`Serviços parados para ${branch}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      s.fail(`${branch}: ${message}`);
+      failures.push({ branch, message });
+    }
+  }
+
+  const stopped = branches.length - failures.length;
+  if (failures.length > 0) {
+    console.error(`\n${stopped} parada(s), ${failures.length} com erro.`);
+    process.exit(1);
+  } else {
+    console.log(`\n${stopped} branch(es) parada(s).`);
+  }
 }

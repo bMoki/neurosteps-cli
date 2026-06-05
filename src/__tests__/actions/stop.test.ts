@@ -31,7 +31,7 @@ describe("stopAction", () => {
     });
     const mocks = createMocks(exec);
 
-    await stopAction("feat-123", mocks);
+    await stopAction("feat-123", {}, mocks);
 
     expect(exec).toHaveBeenCalledWith(["lsof", "-ti", `:${TEST_BACKEND_PORT}`], { silent: true });
     expect(exec).toHaveBeenCalledWith(["lsof", "-ti", `:${TEST_FRONTEND_PORT}`], { silent: true });
@@ -52,7 +52,7 @@ describe("stopAction", () => {
     });
     const mocks = createMocks(exec);
 
-    await stopAction("feat-123", mocks);
+    await stopAction("feat-123", {}, mocks);
 
     const commands = exec.mock.calls.map(([command]) => command);
     expect(commands).not.toContainEqual(["kill", "-9", "101"]);
@@ -69,7 +69,7 @@ describe("stopAction", () => {
     });
     const mocks = createMocks(exec);
 
-    await expect(stopAction("feat-123", mocks)).rejects.toThrow(
+    await expect(stopAction("feat-123", {}, mocks)).rejects.toThrow(
       `Falha ao listar processos na porta ${TEST_BACKEND_PORT}`,
     );
 
