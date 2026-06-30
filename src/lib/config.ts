@@ -4,6 +4,7 @@ import {
   BACKEND_REPO,
   FRONTEND_REPO,
   MANAGER_REPO,
+  REPORT_SERVER_REPO,
   workspaceEnvSchema,
   type WorkspaceEnv,
 } from "./env";
@@ -20,6 +21,7 @@ export {
   MASTER_BACKEND_PORT,
   MASTER_FRONTEND_PORT,
   MASTER_MANAGER_PORT,
+  MASTER_REPORT_SERVER_PORT,
   PORTLESS_PROXY_PORT,
   DB_USER,
   DB_PASSWORD,
@@ -31,6 +33,7 @@ export {
   BACKEND_REPO,
   FRONTEND_REPO,
   MANAGER_REPO,
+  REPORT_SERVER_REPO,
 } from "./env";
 
 export type { WorkspaceEnv };
@@ -74,6 +77,7 @@ export async function readWorkspaceEnv(branch: string): Promise<WorkspaceEnv | n
       BACKEND_DEBUG_PORT: parse("BACKEND_DEBUG_PORT") || undefined,
       FRONTEND_PORT: parse("FRONTEND_PORT"),
       MANAGER_PORT: parse("MANAGER_PORT") || undefined,
+      REPORT_SERVER_PORT: parse("REPORT_SERVER_PORT") || undefined,
       DB_VOLUME: parse("DB_VOLUME"),
       DB_CONTAINER: parse("DB_CONTAINER"),
       DB_USER: parse("DB_USER") || composeDb.DB_USER || undefined,
@@ -106,6 +110,19 @@ export function resolveManagerDir(branch: string): string {
 export function hasManager(branch: string): boolean {
   try {
     return pathExists(join(WORKTREES_DIR, branch, "manager"));
+  } catch {
+    return false;
+  }
+}
+
+export function resolveReportServerDir(branch: string): string {
+  const wt = join(WORKTREES_DIR, branch, "report-server");
+  return pathExists(wt) ? wt : REPORT_SERVER_REPO;
+}
+
+export function hasReportServer(branch: string): boolean {
+  try {
+    return pathExists(join(WORKTREES_DIR, branch, "report-server"));
   } catch {
     return false;
   }

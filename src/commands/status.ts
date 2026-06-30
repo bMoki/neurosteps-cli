@@ -13,6 +13,7 @@ export interface CompactStatusRow {
   backendRunning: boolean;
   frontendRunning: boolean;
   managerRunning: boolean | null;
+  reportServerRunning: boolean | null;
 }
 
 export function formatCompactBranchName(branch: string): string {
@@ -26,7 +27,8 @@ export function isCompactStatusRowFullyOff(row: CompactStatusRow): boolean {
   return !row.dbRunning
     && !row.backendRunning
     && !row.frontendRunning
-    && row.managerRunning !== true;
+    && row.managerRunning !== true
+    && row.reportServerRunning !== true;
 }
 
 export function sortCompactStatusRows(rows: CompactStatusRow[]): CompactStatusRow[] {
@@ -74,6 +76,7 @@ async function buildRows(branch?: string): Promise<CompactStatusRow[]> {
     const apiAlias = `${aliasSlug}.api.${PRODUCT_NAME}`;
     const webAlias = `${aliasSlug}.web.${PRODUCT_NAME}`;
     const mgrAlias = `${aliasSlug}.manager.${PRODUCT_NAME}`;
+    const rsAlias = `${aliasSlug}.report-server.${PRODUCT_NAME}`;
 
     rows.push({
       branch: b,
@@ -81,6 +84,7 @@ async function buildRows(branch?: string): Promise<CompactStatusRow[]> {
       backendRunning: hasAlias(apiAlias),
       frontendRunning: hasAlias(webAlias),
       managerRunning: env.MANAGER_PORT ? hasAlias(mgrAlias) : null,
+      reportServerRunning: env.REPORT_SERVER_PORT ? hasAlias(rsAlias) : null,
     });
   }
   return rows;
@@ -96,16 +100,17 @@ async function showCompactStatus(plain = false): Promise<void> {
   const rows = await buildRows();
 
   if (plain) {
-    console.log("branch\tdb\tbackend\tfrontend\tmanager");
+    console.log("branch\tdb\tbackend\tfrontend\tmanager\treport-server");
     for (const row of sortCompactStatusRows(rows)) {
       const mgr = row.managerRunning === null ? "n/a" : row.managerRunning ? "on" : "off";
-      console.log(`${row.branch}\t${row.dbRunning ? "on" : "off"}\t${row.backendRunning ? "on" : "off"}\t${row.frontendRunning ? "on" : "off"}\t${mgr}`);
+      const rs = row.reportServerRunning === null ? "n/a" : row.reportServerRunning ? "on" : "off";
+      console.log(`${row.branch}\t${row.dbRunning ? "on" : "off"}\t${row.backendRunning ? "on" : "off"}\t${row.frontendRunning ? "on" : "off"}\t${mgr}\t${rs}`);
     }
     return;
   }
 
-  console.log(colors.bold("\n  Branch        │ DB    │ Backend │ Frontend │ Manager"));
-  console.log(colors.muted("  ──────────────┼───────┼─────────┼──────────┼────────"));
+  console.log(colors.bold("\n  Branch        │ DB    │ Backend │ Frontend │ Manager │ Report"));
+  console.log(colors.muted("  ──────────────┼───────┼─────────┼──────────┼─────────┼───────"));
 
   for (const row of sortCompactStatusRows(rows)) {
     const dbStatus = row.dbRunning ? colors.ok("●") : colors.err("○");
@@ -114,9 +119,12 @@ async function showCompactStatus(plain = false): Promise<void> {
     const managerStatus = row.managerRunning === null
       ? colors.muted("—")
       : row.managerRunning ? colors.ok("●") : colors.err("○");
+    const reportServerStatus = row.reportServerRunning === null
+      ? colors.muted("—")
+      : row.reportServerRunning ? colors.ok("●") : colors.err("○");
 
     const name = formatCompactBranchName(row.branch);
-    console.log(`  ${name}│  ${dbStatus}    │    ${backendStatus}    │     ${frontendStatus}    │   ${managerStatus}`);
+    console.log(`  ${name}│  ${dbStatus}    │    ${backendStatus}    │     ${frontendStatus}    │   ${managerStatus}    │   ${reportServerStatus}`);
   }
   console.log();
 }
@@ -129,6 +137,7 @@ async function showJsonStatus(branch?: string): Promise<void> {
     backend: row.backendRunning,
     frontend: row.frontendRunning,
     manager: row.managerRunning,
+    reportServer: row.reportServerRunning,
   }));
   process.stdout.write(JSON.stringify(branch ? output[0] ?? null : output, null, 2) + "\n");
 }
@@ -147,6 +156,7 @@ async function showBranchStatus(branch: string, plain = false): Promise<void> {
     console.log(`backend\tlocalhost:${env.BACKEND_PORT}`);
     console.log(`frontend\tlocalhost:${env.FRONTEND_PORT}`);
     if (env.MANAGER_PORT) console.log(`manager\tlocalhost:${env.MANAGER_PORT}`);
+    if (env.REPORT_SERVER_PORT) console.log(`report-server\tlocalhost:${env.REPORT_SERVER_PORT}`);
   } else {
     heading(`Branch: ${branch}`);
     detail("Path", join(WORKTREES_DIR, branch));
@@ -155,6 +165,9 @@ async function showBranchStatus(branch: string, plain = false): Promise<void> {
     detail("Frontend", `localhost:${env.FRONTEND_PORT}`);
     if (env.MANAGER_PORT) {
       detail("Manager", `localhost:${env.MANAGER_PORT}`);
+    }
+    if (env.REPORT_SERVER_PORT) {
+      detail("Report-server", `localhost:${env.REPORT_SERVER_PORT}`);
     }
   }
 
@@ -170,6 +183,7 @@ async function showBranchStatus(branch: string, plain = false): Promise<void> {
   const apiAlias = `${aliasSlug}.api.${PRODUCT_NAME}`;
   const webAlias = `${aliasSlug}.web.${PRODUCT_NAME}`;
   const mgrAlias = `${aliasSlug}.manager.${PRODUCT_NAME}`;
+  const rsAlias = `${aliasSlug}.report-server.${PRODUCT_NAME}`;
   const hasAlias = (alias: string) => aliases.some((a) => a.toLowerCase().includes(alias.toLowerCase()));
 
   if (hasAlias(apiAlias)) {
@@ -189,6 +203,14 @@ async function showBranchStatus(branch: string, plain = false): Promise<void> {
       ok(`Manager ativo (${mgrAlias})`);
     } else {
       warn("Manager sem alias Portless");
+    }
+  }
+
+  if (env.REPORT_SERVER_PORT) {
+    if (hasAlias(rsAlias)) {
+      ok(`Report-server ativo (${rsAlias})`);
+    } else {
+      warn("Report-server sem alias Portless");
     }
   }
 }

@@ -7,7 +7,8 @@ export function doctorCommand(): Command {
     .argument("<branch>", "nome da branch")
     .option("--fix", "tenta corrigir problemas automaticamente")
     .option("--no-manager", "não diagnostica o repo manager")
+    .option("--no-report-server", "não diagnostica o repo report-server")
     .action(async (branch, opts) => {
-      await doctorAction(branch, opts.fix || false, { noManager: opts.manager === false });
+      await doctorAction(branch, opts.fix || false, { noManager: opts.manager === false, noReportServer: opts.reportServer === false });
     });
 }

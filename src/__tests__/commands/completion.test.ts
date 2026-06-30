@@ -122,11 +122,11 @@ describe("completion bash", () => {
     expect(script).toContain('printf "%s\\n" latest');
   });
 
-  test("add manager completes branches", () => {
+  test("add manager and report-server complete branches", () => {
     const script = renderBashCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local add_subs="manager"');
-    expect(script).toContain('if [ "${COMP_WORDS[2]}" = "manager" ] && [ $COMP_CWORD -eq 3 ]; then');
+    expect(script).toContain('local add_subs="manager report-server"');
+    expect(script).toContain('if { [ "${COMP_WORDS[2]}" = "manager" ] || [ "${COMP_WORDS[2]}" = "report-server" ]; } && [ $COMP_CWORD -eq 3 ]; then');
     expect(script).not.toContain('COMPREPLY=( $(compgen -W "$branches" -- "$cur") )\n}');
   });
 
@@ -157,13 +157,13 @@ describe("completion zsh", () => {
     expect(script).toContain('restore|rm-snapshot');
   });
 
-  test("add manager completes branches", () => {
+  test("add manager and report-server complete branches", () => {
     const script = renderZshCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local -a add_subs=("manager")');
+    expect(script).toContain('local -a add_subs=("manager" "report-server")');
     expect(script).toContain('case "$words[2]" in');
     expect(script).toContain('add)');
-    expect(script).toContain('[[ "$words[3]" == "manager" ]] && (( CURRENT == 4 ))');
+    expect(script).toContain('[[ "$words[3]" == "manager" || "$words[3]" == "report-server" ]] && (( CURRENT == 4 ))');
     expect(script).toContain("_describe 'branch' branches");
   });
 });

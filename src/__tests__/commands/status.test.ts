@@ -20,6 +20,7 @@ describe("status compact helpers", () => {
         backendRunning: false,
         frontendRunning: false,
         managerRunning: null,
+        reportServerRunning: null,
       },
       {
         branch: "partial",
@@ -27,6 +28,7 @@ describe("status compact helpers", () => {
         backendRunning: true,
         frontendRunning: false,
         managerRunning: null,
+        reportServerRunning: null,
       },
       {
         branch: "active-manager",
@@ -34,6 +36,7 @@ describe("status compact helpers", () => {
         backendRunning: false,
         frontendRunning: false,
         managerRunning: true,
+        reportServerRunning: null,
       },
       {
         branch: "inactive-manager",
@@ -41,6 +44,7 @@ describe("status compact helpers", () => {
         backendRunning: false,
         frontendRunning: false,
         managerRunning: false,
+        reportServerRunning: null,
       },
     ];
 

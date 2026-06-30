@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { addManagerAction } from "../actions/add";
+import { addManagerAction, addReportServerAction } from "../actions/add";
 
 export function addCommand(): Command {
   return new Command("add")
@@ -12,6 +12,16 @@ export function addCommand(): Command {
         .option("--port <port>", "porta do manager")
         .action(async (branch, opts) => {
           await addManagerAction(branch, opts);
+        }),
+    )
+    .addCommand(
+      new Command("report-server")
+        .description("Adiciona o repo report-server a uma workspace existente")
+        .argument("<branch>", "nome da branch/workspace")
+        .option("--base <branch>", "branch base quando a branch não existe no report-server", "master")
+        .option("--port <port>", "porta do report-server")
+        .action(async (branch, opts) => {
+          await addReportServerAction(branch, opts);
         }),
     );
 }

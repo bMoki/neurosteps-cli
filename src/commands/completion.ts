@@ -77,12 +77,16 @@ const DB_DIRECT_BRANCH_SUBCOMMANDS = [
 ];
 
 const DB_SNAPSHOT_NAME_SUBCOMMANDS = [
-  "restore",
   "rm-snapshot",
+];
+
+const DB_RESTORE_REF_SUBCOMMANDS = [
+  "restore",
 ];
 
 const ADD_SUBCOMMANDS = [
   "manager",
+  "report-server",
 ];
 
 const WORKSPACE_SUBCOMMANDS = [
@@ -226,7 +230,10 @@ end
 
 function __ns_needs_add_branch
   set -l tokens (commandline -opc)
-  if test (count $tokens) -lt 3 -o "$tokens[2]" != "add" -o "$tokens[3]" != "manager"
+  if test (count $tokens) -lt 3 -o "$tokens[2]" != "add"
+    return 1
+  end
+  if test "$tokens[3]" != "manager" -a "$tokens[3]" != "report-server"
     return 1
   end
   if test (count $tokens) -eq 3
@@ -329,6 +336,19 @@ function __ns_snapshot_names
   printf "%s\\n" latest
 end
 
+function __ns_snapshot_refs
+  set -l snapshots_dir ${shellQuote(snapshotsDir)}
+  if test -d "$snapshots_dir"
+    for branch_dir in "$snapshots_dir"/*/
+      set -l branch (basename "$branch_dir")
+      for snap in (command ls -1 "$branch_dir" 2>/dev/null | string match -r '.*\\.json$' | string replace -r '\\.json$' '')
+        printf "%s:%s\\n" $branch $snap
+      end
+      printf "%s:latest\\n" $branch
+    end
+  end
+end
+
 function __ns_needs_snapshot_name
   set -l tokens (commandline -opc)
   if test (count $tokens) -lt 4
@@ -339,7 +359,7 @@ function __ns_needs_snapshot_name
     return 1
   end
 
-  if not contains -- $tokens[3] restore rm-snapshot
+  if not contains -- $tokens[3] rm-snapshot
     return 1
   end
 
@@ -361,6 +381,27 @@ function __ns_needs_snapshot_name
 
   if test (count $tokens) -gt 5
     return 1
+  end
+
+  return 1
+end
+
+function __ns_needs_restore_ref
+  set -l tokens (commandline -opc)
+  if test (count $tokens) -lt 4
+    return 1
+  end
+
+  if test "$tokens[1]" != "ns" -o "$tokens[2]" != "db" -o "$tokens[3]" != "restore"
+    return 1
+  end
+
+  if test (count $tokens) -eq 4 -a -n "$tokens[4]"
+    return 0
+  end
+
+  if test (count $tokens) -eq 5 -a -n "$tokens[4]"
+    return 0
   end
 
   return 1
@@ -441,6 +482,7 @@ complete -c ns -n "__ns_needs_db_subcommand" -a "(__ns_db_subs)"
 complete -c ns -n "__ns_needs_db_branch" -a "(__ns_branches)"
 complete -c ns -n "__ns_needs_snapshot_branch" -a "(__ns_branches)"
 complete -c ns -n "__ns_needs_snapshot_name" -a "(__ns_snapshot_names)"
+complete -c ns -n "__ns_needs_restore_ref" -a "(__ns_snapshot_refs)"
 complete -c ns -n "__ns_needs_workspace_subcommand" -a "(__ns_workspace_subs)"
 complete -c ns -n "__ns_needs_workspace_template_subcommand" -a "(__ns_workspace_template_subs)"
 complete -c ns -n "__ns_needs_workspace_template_branch" -a "(__ns_branches)"
@@ -484,6 +526,19 @@ _ns_completions() {
     printf "%s\\n" latest
   }
 
+  _ns_snapshot_refs() {
+    for branch_dir in "$snapshots_dir"/*/; do
+      if [ -d "$branch_dir" ]; then
+        local branch
+        branch=$(basename "$branch_dir")
+        command ls -1 "$branch_dir" 2>/dev/null | command grep -E '\\.json$' | command sed 's/\\.json$//' | while read -r snap; do
+          printf "%s:%s\\n" "$branch" "$snap"
+        done
+        printf "%s:latest\\n" "$branch"
+      fi
+    done
+  }
+
   if [ $COMP_CWORD -eq 1 ]; then
     COMPREPLY=( $(compgen -W "$cmds" -- "$cur") )
     return
@@ -507,7 +562,7 @@ _ns_completions() {
         COMPREPLY=( $(compgen -W "$add_subs" -- "$cur") )
         return
       fi
-      if [ "\${COMP_WORDS[2]}" = "manager" ] && [ $COMP_CWORD -eq 3 ]; then
+      if { [ "\${COMP_WORDS[2]}" = "manager" ] || [ "\${COMP_WORDS[2]}" = "report-server" ]; } && [ $COMP_CWORD -eq 3 ]; then
         COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
         return
       fi
@@ -532,6 +587,15 @@ _ns_completions() {
         if [ $COMP_CWORD -eq 4 ]; then
           branch="\${COMP_WORDS[3]}"
           COMPREPLY=( $(compgen -W "$( _ns_snapshot_names "$branch" )" -- "$cur") )
+          return
+        fi
+        ;;
+    esac
+
+    case "\${COMP_WORDS[2]}" in
+      ${DB_RESTORE_REF_SUBCOMMANDS.join("|")})
+        if [ $COMP_CWORD -eq 4 ]; then
+          COMPREPLY=( $(compgen -W "$( _ns_snapshot_refs )" -- "$cur") )
           return
         fi
         ;;
@@ -609,6 +673,21 @@ _ns() {
     printf "%s\\n" latest
   }
 
+  _ns_snapshot_refs() {
+    if [[ -d "$snapshots_dir" ]]; then
+      for branch_dir in "$snapshots_dir"/*/; do
+        if [[ -d "$branch_dir" ]]; then
+          local branch
+          branch=$(basename "$branch_dir")
+          command ls -1 "$branch_dir" 2>/dev/null | command sed -n 's/\\.json$//p' | while read -r snap; do
+            printf "%s:%s\\n" "$branch" "$snap"
+          done
+          printf "%s:latest\\n" "$branch"
+        fi
+      done
+    fi
+  }
+
   if (( CURRENT == 2 )); then
     _describe 'command' cmds
     return
@@ -632,7 +711,7 @@ _ns() {
         _describe 'add subcommand' add_subs
         return
       fi
-      if [[ "$words[3]" == "manager" ]] && (( CURRENT == 4 )); then
+      if [[ "$words[3]" == "manager" || "$words[3]" == "report-server" ]] && (( CURRENT == 4 )); then
         _describe 'branch' branches
         return
       fi
@@ -657,6 +736,16 @@ _ns() {
           if (( CURRENT == 5 )); then
             snapshot_names=(\${(f)"$(_ns_snapshot_names "$words[4]")"})
             _describe 'snapshot' snapshot_names
+            return
+          fi
+          ;;
+      esac
+
+      case "$words[3]" in
+        ${DB_RESTORE_REF_SUBCOMMANDS.join("|")})
+          if (( CURRENT == 5 )); then
+            local -a snapshot_refs=(\${(f)"$(_ns_snapshot_refs)"})
+            _describe 'snapshot ref' snapshot_refs
             return
           fi
           ;;

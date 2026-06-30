@@ -2,7 +2,9 @@ import {
   resolveBackendDir,
   resolveFrontendDir,
   resolveManagerDir,
+  resolveReportServerDir,
   hasManager,
+  hasReportServer,
   PRODUCT_NAME,
   PORTLESS_PROXY_PORT,
   BACKEND_CORE_MODULE,
@@ -35,12 +37,22 @@ interface TerminalOpenResult {
 export interface StartActionDeps extends Partial<BranchSetupDeps> {
   spawnTerm?: typeof spawnTerminal;
   branchHasManager?: typeof hasManager;
+  branchHasReportServer?: typeof hasReportServer;
   aiFlag?: string;
   noManager?: boolean;
+  noReportServer?: boolean;
 }
 
 export async function startAction(branch: string, deps: StartActionDeps = {}): Promise<void> {
-  const { spawnTerm = spawnTerminal, branchHasManager = hasManager, aiFlag, noManager = false, ...setupDeps } = deps;
+  const {
+    spawnTerm = spawnTerminal,
+    branchHasManager = hasManager,
+    branchHasReportServer = hasReportServer,
+    aiFlag,
+    noManager = false,
+    noReportServer = false,
+    ...setupDeps
+  } = deps;
   const s = spinner(`Iniciando ${branch}...`).start();
 
   const runtime = await setupBranchRuntime(branch, {
@@ -112,8 +124,38 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     }
   }
 
+  if (!noReportServer && branchHasReportServer(branch)) {
+    const reportServerDir = resolveReportServerDir(branch);
+    if (!pathExists(join(reportServerDir, "node_modules"))) {
+      warn("node_modules do report-server não encontrado");
+      if (process.stdout.isTTY) {
+        const shouldInstall = await confirm({
+          message: "Instalar dependências do report-server agora?",
+          default: true,
+        });
+        if (shouldInstall) {
+          s.text = "Instalando dependências do report-server...";
+          const result = await exec(["bun", "install"], { cwd: reportServerDir, silent: true });
+          if (result.exitCode === 0) {
+            s.text = "Dependências do report-server instaladas";
+          } else {
+            warn("Falha ao instalar dependências do report-server");
+            warn("Rode manualmente: bun install em " + reportServerDir);
+          }
+        }
+      } else {
+        hint("Rode manualmente: bun install em " + reportServerDir);
+      }
+    }
+  }
+
   s.text = "Abrindo terminais...";
-  const services = buildStartServices(branch, runtime, !noManager && branchHasManager(branch));
+  const services = buildStartServices(
+    branch,
+    runtime,
+    !noManager && branchHasManager(branch),
+    !noReportServer && branchHasReportServer(branch),
+  );
   const terminalResult = await openServiceTerminals(services, spawnTerm);
 
   if (terminalResult.error) {
@@ -128,6 +170,9 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
   detail("Frontend", runtime.urls.frontend);
   if (runtime.urls.manager) {
     detail("Manager", runtime.urls.manager);
+  }
+  if (runtime.urls.reportServer) {
+    detail("Report-server", runtime.urls.reportServer);
   }
 
   if (terminalResult.error) {
@@ -155,7 +200,12 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
   hint(`Próximo passo: ns status ${branch}  # ver status dos serviços`);
 }
 
-function buildStartServices(branch: string, runtime: BranchRuntime, includeManager: boolean): StartServiceCommand[] {
+function buildStartServices(
+  branch: string,
+  runtime: BranchRuntime,
+  includeManager: boolean,
+  includeReportServer: boolean,
+): StartServiceCommand[] {
   const backendDir = resolveBackendDir(branch);
   const frontendDir = resolveFrontendDir(branch);
   const services: StartServiceCommand[] = [
@@ -200,6 +250,23 @@ function buildStartServices(branch: string, runtime: BranchRuntime, includeManag
         VITE_PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
       },
       command: "npm run dev",
+    });
+  }
+
+  if (includeReportServer && runtime.urls.reportServer && runtime.env.REPORT_SERVER_PORT) {
+    services.push({
+      label: "Report-server",
+      cwd: resolveReportServerDir(branch),
+      env: {
+        PORT: String(runtime.env.REPORT_SERVER_PORT),
+        APP_URL: runtime.urls.reportServer,
+        WEB_URL: runtime.urls.frontend,
+        API_URL: runtime.urls.backend,
+        BRANCH_NAME: branch,
+        PRODUCT_NAME,
+        PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
+      },
+      command: "bun run dev",
     });
   }
 

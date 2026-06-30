@@ -3,6 +3,7 @@ import {
   WORKTREES_DIR,
   readWorkspaceEnv,
   hasManager,
+  hasReportServer,
   PRODUCT_NAME,
   PORTLESS_PROXY_PORT,
   BACKEND_CORE_MODULE,
@@ -20,6 +21,7 @@ import { join } from "path";
 interface DiagnosticoDeps {
   readEnv: typeof readWorkspaceEnv;
   hasMgr: typeof hasManager;
+  hasRs: typeof hasReportServer;
   volumeExists: typeof dockerVolumeExists;
   volumeCreate: typeof dockerVolumeCreate;
   volumeCopy: typeof dockerVolumeCopy;
@@ -28,11 +30,13 @@ interface DiagnosticoDeps {
   shell: typeof exec;
   shellSync: typeof execSync;
   noManager?: boolean;
+  noReportServer?: boolean;
 }
 
 const defaultDeps: DiagnosticoDeps = {
   readEnv: readWorkspaceEnv,
   hasMgr: hasManager,
+  hasRs: hasReportServer,
   volumeExists: dockerVolumeExists,
   volumeCreate: dockerVolumeCreate,
   volumeCopy: dockerVolumeCopy,
@@ -45,13 +49,15 @@ const defaultDeps: DiagnosticoDeps = {
 export async function doctorAction(
   branch: string,
   fix: boolean,
-  opts: { noManager?: boolean } = {},
+  opts: { noManager?: boolean; noReportServer?: boolean } = {},
   deps: Partial<DiagnosticoDeps> = {},
 ): Promise<void> {
   const noManager = opts.noManager ?? deps.noManager ?? false;
+  const noReportServer = opts.noReportServer ?? deps.noReportServer ?? false;
   const {
     readEnv,
     hasMgr,
+    hasRs,
     volumeExists,
     volumeCreate,
     volumeCopy,
@@ -149,6 +155,24 @@ export async function doctorAction(
       }
     }
   }
+  if (!noReportServer && hasRs(branch)) {
+    if (pathExists(join(wtDir, "report-server/node_modules"))) {
+      checkPass("node_modules do report-server instalado");
+    } else {
+      checkFail("node_modules do report-server NÃO encontrado");
+      if (fix) {
+        const rsDir = join(wtDir, "report-server");
+        const installResult = await withSpinner("Instalando dependências do report-server", () =>
+          shell(["bun", "install"], { cwd: rsDir, silent: true }),
+        );
+        if (installResult.exitCode === 0) {
+          checkFix("node_modules do report-server instalado");
+        } else {
+          checkWarn("Falha ao instalar node_modules do report-server. Tente manualmente: bun install");
+        }
+      }
+    }
+  }
 
   // 3. .workspace.env
   section(".workspace.env");
@@ -169,6 +193,13 @@ export async function doctorAction(
         checkPass(`MANAGER_PORT=${env.MANAGER_PORT}`);
       } else {
         checkFail("MANAGER_PORT não definido (manager existe mas sem porta)");
+      }
+    }
+    if (dirExists(join(wtDir, "report-server"))) {
+      if (env.REPORT_SERVER_PORT) {
+        checkPass(`REPORT_SERVER_PORT=${env.REPORT_SERVER_PORT}`);
+      } else {
+        checkFail("REPORT_SERVER_PORT não definido (report-server existe mas sem porta)");
       }
     }
   } else {
@@ -348,6 +379,36 @@ export async function doctorAction(
     }
   }
 
+  // 5b. Report-server
+  if (!noReportServer && hasRs(branch)) {
+    section("Report-server");
+    if (dirExists(join(wtDir, "report-server"))) {
+      checkPass("Worktree existe");
+    } else {
+      checkFail("Worktree do report-server não encontrado");
+    }
+    const rsEnv = join(wtDir, "report-server/.env");
+    if (pathExists(rsEnv)) {
+      checkPass(".env existe");
+    } else {
+      checkFail(".env não encontrado");
+      if (fix && env?.REPORT_SERVER_PORT) {
+        await copyTemplate(
+          join(WORKSPACE_DIR, "templates/report-server-.env"),
+          rsEnv,
+          {
+            BRANCH_NAME: branch,
+            BRANCH_SLUG: env.BRANCH_SLUG,
+            REPORT_SERVER_PORT: String(env.REPORT_SERVER_PORT),
+            PRODUCT_NAME,
+            PORTLESS_PROXY_PORT: String(PORTLESS_PROXY_PORT),
+          },
+        );
+        checkFix("Regenerado .env");
+      }
+    }
+  }
+
   // 6. Docker Volume
   section("Docker Volume");
   if (env?.DB_VOLUME) {
@@ -406,6 +467,7 @@ export async function doctorAction(
   const backendAlias = `${aliasSlug}.api.${PRODUCT_NAME}`;
   const frontendAlias = `${aliasSlug}.web.${PRODUCT_NAME}`;
   const managerAlias = `${aliasSlug}.manager.${PRODUCT_NAME}`;
+  const reportServerAlias = `${aliasSlug}.report-server.${PRODUCT_NAME}`;
   const hasAlias = (name: string) => aliases.some((a) => a.toLowerCase().includes(name.toLowerCase()));
 
   if (hasAlias(backendAlias)) {
@@ -437,12 +499,26 @@ export async function doctorAction(
       }
     }
   }
+  if (!noReportServer && hasRs(branch)) {
+    if (hasAlias(reportServerAlias)) {
+      checkPass(`Alias report-server: ${reportServerAlias}`);
+    } else {
+      checkFail("Alias report-server NÃO registrado");
+      if (fix && env?.REPORT_SERVER_PORT) {
+        await register(reportServerAlias, env.REPORT_SERVER_PORT);
+        checkFix("Alias report-server registrado");
+      }
+    }
+  }
 
   // 9. Ports
   section("Portas");
   const ports = [env?.BACKEND_PORT, env?.FRONTEND_PORT];
   if (!noManager && hasMgr(branch)) {
     ports.push(env?.MANAGER_PORT);
+  }
+  if (!noReportServer && hasRs(branch)) {
+    ports.push(env?.REPORT_SERVER_PORT);
   }
   for (const port of ports) {
     if (port) {

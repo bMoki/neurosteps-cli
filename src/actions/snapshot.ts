@@ -7,6 +7,16 @@ import { detail, emptyLine, heading, hint, info, spinner, warn, error } from "..
 import { confirm } from "../lib/prompt";
 import { join } from "path";
 
+function parseSnapshotRef(ref: string, targetBranch: string): { originBranch: string; name: string } {
+  const colonIdx = ref.indexOf(":");
+  if (colonIdx === -1) return { originBranch: targetBranch, name: ref };
+  return { originBranch: ref.slice(0, colonIdx), name: ref.slice(colonIdx + 1) };
+}
+
+function snapshotRef(branch: string, name: string): string {
+  return `${branch}:${name}`;
+}
+
 const snapshotMetaSchema = z.object({
   name: z.string().min(1),
   slug: z.string().min(1),
@@ -153,6 +163,11 @@ export async function snapshotAction(
     process.exit(1);
   }
 
+  if (name?.includes(":")) {
+    s.fail("Nome de snapshot não pode conter ':'");
+    process.exit(1);
+  }
+
   const snapshotName = name || new Date().toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
@@ -216,20 +231,26 @@ export async function restoreAction(
       process.exit(1);
     }
 
-    const snapshot = await readSnapshotMeta(branch, name, defaulted);
+    const { originBranch, name: bareName } = parseSnapshotRef(name, branch);
+    const snapshot = await readSnapshotMeta(originBranch, bareName, defaulted);
+    const isCross = originBranch !== branch;
+    const displayRef = isCross ? snapshotRef(originBranch, snapshot.name) : snapshot.name;
 
     if (dryRun) {
       s.stop();
       warn(`[dry-run] Seria executado em '${branch}':`);
       hint(`  parar PostgreSQL`);
-      hint(`  substituir volume ${env.DB_VOLUME} pelo snapshot '${snapshot.name}'`);
+      hint(`  substituir volume ${env.DB_VOLUME} pelo snapshot '${displayRef}'`);
       hint(`  origem: ${snapshot.volume}`);
       return;
     }
 
     if (!force) {
       s.stop();
-      const shouldRestore = await confirm(`Restaurar snapshot '${snapshot.name}' em ${branch}? Isso substituirá o banco atual.`);
+      const confirmMsg = isCross
+        ? `Restaurar '${displayRef}' (origem: ${originBranch}) em '${branch}'? Isso substituirá o banco atual.`
+        : `Restaurar snapshot '${snapshot.name}' em ${branch}? Isso substituirá o banco atual.`;
+      const shouldRestore = await confirm(confirmMsg);
       if (!shouldRestore) {
         warn("Operação cancelada.");
         return;
@@ -252,9 +273,11 @@ export async function restoreAction(
     await composeUp(composeFile, env.COMPOSE_PROJECT);
     await waitPg(env.DB_CONTAINER, { user: env.DB_USER, database: env.DB_NAME });
 
-    s.succeed(`Snapshot '${snapshot.name}' restaurado em ${branch}`);
+    s.succeed(isCross
+      ? `Snapshot '${displayRef}' restaurado em ${branch}`
+      : `Snapshot '${snapshot.name}' restaurado em ${branch}`);
     emptyLine();
-    detail("Snapshot", snapshot.name);
+    detail("Snapshot", displayRef);
     detail("Volume origem", snapshot.volume);
     detail("Volume destino", env.DB_VOLUME);
   } catch (err) {
@@ -275,7 +298,7 @@ export async function listSnapshotsAction(
     const result: Record<string, { name: string; created_at: string; volume: string }[]> = {};
     for (const branchName of branches) {
       const snapshots = await listSnapshotMetas(branchName, defaulted);
-      result[branchName] = snapshots.map((s) => ({ name: s.name, created_at: s.created_at, volume: s.volume }));
+      result[branchName] = snapshots.map((s) => ({ name: s.name, ref: snapshotRef(branchName, s.name), created_at: s.created_at, volume: s.volume }));
     }
     process.stdout.write(JSON.stringify(branch ? (result[branch] ?? []) : result, null, 2) + "\n");
     return;
@@ -300,13 +323,25 @@ export async function listSnapshotsAction(
     foundAny = true;
     heading(`Snapshots: ${branchName}`);
     for (const snapshot of snapshots) {
-      detail(snapshot.name, `${snapshot.created_at} · ${snapshot.volume}`);
+      detail(snapshotRef(branchName, snapshot.name), `${snapshot.created_at} · ${snapshot.volume}`);
     }
     emptyLine();
   }
 
   if (!foundAny) {
     info(branch ? `Nenhum snapshot encontrado para ${branch}.` : "Nenhum snapshot encontrado.");
+  }
+}
+
+export async function removeBranchSnapshots(branch: string, deps: Partial<SnapshotDeps> = {}): Promise<void> {
+  const defaulted = { ...defaultDeps, ...deps };
+  const snapshots = await listSnapshotMetas(branch, defaulted);
+  for (const snapshot of snapshots) {
+    await defaulted.volumeRm(snapshot.volume);
+  }
+  const dir = getSnapshotDir(branch);
+  if (defaulted.pathExists(dir)) {
+    await defaulted.rm(dir, { recursive: true, force: true });
   }
 }
 
