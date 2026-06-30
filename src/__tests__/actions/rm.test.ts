@@ -1,5 +1,5 @@
 import { describe, test, expect, mock } from "bun:test";
-import { rmAction } from "../../actions/rm";
+import { rmAction, rmFlaggedAction } from "../../actions/rm";
 import { createMockWorkspaceEnv } from "../setup";
 
 class ProcessExit extends Error {}
@@ -109,5 +109,42 @@ describe("rmAction", () => {
     }
 
     process.exit = originalExit;
+  });
+});
+
+describe("rmFlaggedAction", () => {
+  test("removes only branches with the requested flag", async () => {
+    const deps = {
+      list: mock(() => ["active", "old-a", "old-b"]),
+      listFlagged: mock(() => Promise.resolve(["old-a", "old-b"])),
+      rm: mock(() => Promise.resolve()),
+    };
+
+    await rmFlaggedAction("stale", { force: true, purge: true }, deps);
+
+    expect(deps.listFlagged).toHaveBeenCalledWith(["active", "old-a", "old-b"], "stale");
+    expect(deps.rm).toHaveBeenCalledTimes(2);
+    expect(deps.rm).toHaveBeenCalledWith("old-a", { force: true, purge: true });
+    expect(deps.rm).toHaveBeenCalledWith("old-b", { force: true, purge: true });
+  });
+
+  test("does nothing when no branches are flagged", async () => {
+    const deps = {
+      list: mock(() => ["active"]),
+      listFlagged: mock(() => Promise.resolve([])),
+      rm: mock(() => Promise.resolve()),
+    };
+
+    await rmFlaggedAction("stale", {}, deps);
+
+    expect(deps.rm).not.toHaveBeenCalled();
+  });
+
+  test("rejects unsupported flags", async () => {
+    await expect(rmFlaggedAction("unknown", {}, {
+      list: mock(() => []),
+      listFlagged: mock(() => Promise.resolve([])),
+      rm: mock(() => Promise.resolve()),
+    })).rejects.toThrow("não suportada");
   });
 });

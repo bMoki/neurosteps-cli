@@ -10,6 +10,7 @@ describe("startAction", () => {
     regAlias: mock(() => Promise.resolve()) as StartActionDeps["regAlias"],
     proxyRunning: mock(() => true) as StartActionDeps["proxyRunning"],
     proxyStart: mock(() => Promise.resolve()) as StartActionDeps["proxyStart"],
+    markTouched: mock(() => Promise.resolve()) as StartActionDeps["markTouched"],
     spawnTerm: mock(
       async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {},
     ) as StartActionDeps["spawnTerm"],

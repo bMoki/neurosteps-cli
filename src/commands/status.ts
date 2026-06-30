@@ -3,6 +3,7 @@ import { WORKTREES_DIR, readWorkspaceEnv, PRODUCT_NAME, listBranches } from "../
 import { dockerPs } from "../lib/docker";
 import { listAliases } from "../lib/portless";
 import { detail, emptyLine, error, heading, ok, warn, colors } from "../lib/logger";
+import { getBranchFlags, STALE_BRANCH_FLAG } from "../lib/branch-flags";
 import { join } from "path";
 
 const BRANCH_COLUMN_WIDTH = 14;
@@ -14,6 +15,10 @@ export interface CompactStatusRow {
   frontendRunning: boolean;
   managerRunning: boolean | null;
   reportServerRunning: boolean | null;
+  flags: string[];
+  stale: boolean;
+  lastCommitAt: string | null;
+  lastCliUsedAt: string | null;
 }
 
 export function formatCompactBranchName(branch: string): string {
@@ -77,6 +82,7 @@ async function buildRows(branch?: string): Promise<CompactStatusRow[]> {
     const webAlias = `${aliasSlug}.web.${PRODUCT_NAME}`;
     const mgrAlias = `${aliasSlug}.manager.${PRODUCT_NAME}`;
     const rsAlias = `${aliasSlug}.report-server.${PRODUCT_NAME}`;
+    const branchFlags = await getBranchFlags(b);
 
     rows.push({
       branch: b,
@@ -85,6 +91,10 @@ async function buildRows(branch?: string): Promise<CompactStatusRow[]> {
       frontendRunning: hasAlias(webAlias),
       managerRunning: env.MANAGER_PORT ? hasAlias(mgrAlias) : null,
       reportServerRunning: env.REPORT_SERVER_PORT ? hasAlias(rsAlias) : null,
+      flags: branchFlags.flags,
+      stale: branchFlags.stale,
+      lastCommitAt: branchFlags.lastCommitAt,
+      lastCliUsedAt: branchFlags.lastCliUsedAt,
     });
   }
   return rows;
@@ -100,17 +110,17 @@ async function showCompactStatus(plain = false): Promise<void> {
   const rows = await buildRows();
 
   if (plain) {
-    console.log("branch\tdb\tbackend\tfrontend\tmanager\treport-server");
+    console.log("branch\tdb\tbackend\tfrontend\tmanager\treport-server\tflags");
     for (const row of sortCompactStatusRows(rows)) {
       const mgr = row.managerRunning === null ? "n/a" : row.managerRunning ? "on" : "off";
       const rs = row.reportServerRunning === null ? "n/a" : row.reportServerRunning ? "on" : "off";
-      console.log(`${row.branch}\t${row.dbRunning ? "on" : "off"}\t${row.backendRunning ? "on" : "off"}\t${row.frontendRunning ? "on" : "off"}\t${mgr}\t${rs}`);
+      console.log(`${row.branch}\t${row.dbRunning ? "on" : "off"}\t${row.backendRunning ? "on" : "off"}\t${row.frontendRunning ? "on" : "off"}\t${mgr}\t${rs}\t${row.flags.join(",")}`);
     }
     return;
   }
 
-  console.log(colors.bold("\n  Branch        │ DB    │ Backend │ Frontend │ Manager │ Report"));
-  console.log(colors.muted("  ──────────────┼───────┼─────────┼──────────┼─────────┼───────"));
+  console.log(colors.bold("\n  Branch        │ DB    │ Backend │ Frontend │ Manager │ Report │ Flags"));
+  console.log(colors.muted("  ──────────────┼───────┼─────────┼──────────┼─────────┼────────┼──────"));
 
   for (const row of sortCompactStatusRows(rows)) {
     const dbStatus = row.dbRunning ? colors.ok("●") : colors.err("○");
@@ -122,9 +132,10 @@ async function showCompactStatus(plain = false): Promise<void> {
     const reportServerStatus = row.reportServerRunning === null
       ? colors.muted("—")
       : row.reportServerRunning ? colors.ok("●") : colors.err("○");
+    const flags = row.flags.includes(STALE_BRANCH_FLAG) ? colors.warn(STALE_BRANCH_FLAG) : colors.muted("—");
 
     const name = formatCompactBranchName(row.branch);
-    console.log(`  ${name}│  ${dbStatus}    │    ${backendStatus}    │     ${frontendStatus}    │   ${managerStatus}    │   ${reportServerStatus}`);
+    console.log(`  ${name}│  ${dbStatus}    │    ${backendStatus}    │     ${frontendStatus}    │   ${managerStatus}    │   ${reportServerStatus}    │ ${flags}`);
   }
   console.log();
 }
@@ -138,6 +149,10 @@ async function showJsonStatus(branch?: string): Promise<void> {
     frontend: row.frontendRunning,
     manager: row.managerRunning,
     reportServer: row.reportServerRunning,
+    flags: row.flags,
+    stale: row.stale,
+    lastCommitAt: row.lastCommitAt,
+    lastCliUsedAt: row.lastCliUsedAt,
   }));
   process.stdout.write(JSON.stringify(branch ? output[0] ?? null : output, null, 2) + "\n");
 }
@@ -212,6 +227,11 @@ async function showBranchStatus(branch: string, plain = false): Promise<void> {
     } else {
       warn("Report-server sem alias Portless");
     }
+  }
+
+  const branchFlags = await getBranchFlags(branch);
+  if (branchFlags.stale) {
+    warn(`Flag ${STALE_BRANCH_FLAG}: sem commit e sem uso da CLI há mais de 7 dias`);
   }
 }
 

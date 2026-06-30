@@ -14,6 +14,7 @@ describe("newAction", () => {
     volumeCreate: mock((name: string) => Promise.resolve()),
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
+    markTouched: mock(() => Promise.resolve()),
   });
 
   test("creates new branch without manager", async () => {
@@ -43,6 +44,7 @@ describe("newAction", () => {
       await newAction("feat-123", "master", false, mocks);
       expect(mocks.allocate).toHaveBeenCalledWith(false);
       expect(mocks.worktree).toHaveBeenCalledTimes(2);
+      expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
     } finally {
       Bun.file = originalFile;
     }
@@ -76,6 +78,7 @@ describe("newAction", () => {
       await newAction("feat-123", "master", true, mocks);
       expect(mocks.allocate).toHaveBeenCalledWith(true);
       expect(mocks.worktree).toHaveBeenCalledTimes(3);
+      expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
     } finally {
       Bun.file = originalFile;
     }

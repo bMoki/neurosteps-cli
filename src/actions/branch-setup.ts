@@ -7,6 +7,7 @@ import {
   type WorkspaceEnv,
 } from "../lib/config";
 import { dockerComposeUp, waitForPostgres } from "../lib/docker";
+import { markBranchTouched } from "../lib/branch-flags";
 import { registerAlias, isProxyRunning, startProxy } from "../lib/portless";
 
 export type BranchSetupStep =
@@ -22,6 +23,7 @@ export interface BranchSetupDeps {
   regAlias: typeof registerAlias;
   proxyRunning: typeof isProxyRunning;
   proxyStart: typeof startProxy;
+  markTouched?: typeof markBranchTouched;
 }
 
 export interface BranchSetupOptions {
@@ -64,6 +66,7 @@ export const defaultBranchSetupDeps: BranchSetupDeps = {
   regAlias: registerAlias,
   proxyRunning: isProxyRunning,
   proxyStart: startProxy,
+  markTouched: markBranchTouched,
 };
 
 export async function setupBranchRuntime(
@@ -78,6 +81,7 @@ export async function setupBranchRuntime(
     regAlias,
     proxyRunning,
     proxyStart,
+    markTouched,
   } = { ...defaultBranchSetupDeps, ...deps };
 
   const env = await readEnv(branch);
@@ -90,6 +94,8 @@ export async function setupBranchRuntime(
   const aliasSlug = env.BRANCH_SLUG || branch.toLowerCase();
   const aliases = buildPortlessAliases(aliasSlug, env);
   const urls = buildBranchUrls(aliases);
+
+  await markTouched?.(branch, "runtime");
 
   if (options.startDatabase) {
     options.onStep?.("database:start");

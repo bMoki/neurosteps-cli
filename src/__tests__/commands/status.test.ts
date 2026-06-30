@@ -6,6 +6,22 @@ import {
   sortCompactStatusRows,
 } from "../../commands/status";
 
+function row(overrides: Partial<CompactStatusRow>): CompactStatusRow {
+  return {
+    branch: "branch",
+    dbRunning: false,
+    backendRunning: false,
+    frontendRunning: false,
+    managerRunning: null,
+    reportServerRunning: null,
+    flags: [],
+    stale: false,
+    lastCommitAt: null,
+    lastCliUsedAt: null,
+    ...overrides,
+  };
+}
+
 describe("status compact helpers", () => {
   test("truncates long branch names to the table width", () => {
     expect(formatCompactBranchName("feat-123")).toBe("feat-123      ");
@@ -14,38 +30,21 @@ describe("status compact helpers", () => {
 
   test("moves fully-off rows to the end", () => {
     const rows: CompactStatusRow[] = [
-      {
+      row({
         branch: "inactive-no-manager",
-        dbRunning: false,
-        backendRunning: false,
-        frontendRunning: false,
-        managerRunning: null,
-        reportServerRunning: null,
-      },
-      {
+      }),
+      row({
         branch: "partial",
-        dbRunning: false,
         backendRunning: true,
-        frontendRunning: false,
-        managerRunning: null,
-        reportServerRunning: null,
-      },
-      {
+      }),
+      row({
         branch: "active-manager",
-        dbRunning: false,
-        backendRunning: false,
-        frontendRunning: false,
         managerRunning: true,
-        reportServerRunning: null,
-      },
-      {
+      }),
+      row({
         branch: "inactive-manager",
-        dbRunning: false,
-        backendRunning: false,
-        frontendRunning: false,
         managerRunning: false,
-        reportServerRunning: null,
-      },
+      }),
     ];
 
     expect(isCompactStatusRowFullyOff(rows[0]!)).toBe(true);

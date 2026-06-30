@@ -1,5 +1,6 @@
 import { WORKTREES_DIR } from "../lib/config";
 import { resolveDatabaseApp, ensureDatabaseAppConfigured } from "../lib/apps";
+import { markBranchTouched } from "../lib/branch-flags";
 import { openApp } from "../lib/shell";
 import { error } from "../lib/logger";
 import { join } from "path";
@@ -23,5 +24,6 @@ export async function openDbAction(branch: string, appKey?: string): Promise<voi
   await resolveDatabaseApp();
 
   const appName = DB_APP_DISPLAY_NAMES[resolvedKey] ?? resolvedKey;
+  await markBranchTouched(branch, "open-db");
   await openApp(appName, wtDir);
 }

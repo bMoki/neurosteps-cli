@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { rmAction } from "../actions/rm";
+import { rmAction, rmFlaggedAction } from "../actions/rm";
 import { newAction } from "../actions/new";
 
 export function newCommand(): Command {
@@ -16,11 +16,20 @@ export function newCommand(): Command {
 export function rmCommand(): Command {
   return new Command("rm")
     .description("Remove a worktree da branch")
-    .argument("<branch>", "nome da branch")
+    .argument("[branch]", "nome da branch")
+    .option("--flagged <flag>", "remove apenas branches com a flag informada (ex: stale)")
     .option("--purge", "também remove o volume Docker")
     .option("-f, --force", "pula confirmação e força remoção de worktrees com alterações locais")
     .option("-n, --dry-run", "simula a operação sem executar")
     .action(async (branch, opts) => {
-      await rmAction(branch, { purge: opts.purge || false, force: opts.force || false, dryRun: opts.dryRun || false });
+      const rmOpts = { purge: opts.purge || false, force: opts.force || false, dryRun: opts.dryRun || false };
+      if (opts.flagged) {
+        if (branch) throw new Error("Use uma branch ou --flagged, não ambos.");
+        await rmFlaggedAction(opts.flagged, rmOpts);
+        return;
+      }
+
+      if (!branch) throw new Error("Informe uma branch ou use --flagged <flag>.");
+      await rmAction(branch, rmOpts);
     });
 }

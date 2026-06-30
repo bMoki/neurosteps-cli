@@ -17,6 +17,7 @@ describe("setupBranchRuntime", () => {
     regAlias: mock(() => Promise.resolve()) as BranchSetupDeps["regAlias"],
     proxyRunning: mock(() => false) as BranchSetupDeps["proxyRunning"],
     proxyStart: mock(() => Promise.resolve()) as BranchSetupDeps["proxyStart"],
+    markTouched: mock(() => Promise.resolve()) as BranchSetupDeps["markTouched"],
     ...overrides,
   });
 

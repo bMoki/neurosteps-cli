@@ -26,6 +26,7 @@ import { allocatePorts } from "../lib/ports";
 import { copyTemplate } from "../lib/templates";
 import { dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
 import { detail, emptyLine, hint, section, spinner } from "../lib/logger";
+import { markBranchTouched } from "../lib/branch-flags";
 import { exec, execChecked } from "../lib/shell";
 import { ensureWorkspaceBootstrap } from "../lib/bootstrap";
 import { pathExistsAsync } from "../lib/filesystem";
@@ -42,6 +43,7 @@ interface NewDeps {
   volumeCreate: typeof dockerVolumeCreate;
   volumeCopy: typeof dockerVolumeCopy;
   shell: typeof exec;
+  markTouched: typeof markBranchTouched;
 }
 
 const defaultDeps: NewDeps = {
@@ -55,6 +57,7 @@ const defaultDeps: NewDeps = {
   volumeCreate: dockerVolumeCreate,
   volumeCopy: dockerVolumeCopy,
   shell: execChecked,
+  markTouched: markBranchTouched,
 };
 
 export async function newAction(
@@ -74,6 +77,7 @@ export async function newAction(
     volumeCreate,
     volumeCopy,
     shell,
+    markTouched,
   } = { ...defaultDeps, ...deps };
 
   const s = spinner(`Criando worktree da branch ${branch}...`).start();
@@ -341,6 +345,7 @@ volumes:
   }
 
   s.succeed(`Worktree '${branch}' criada`);
+  await markTouched(branch, "new");
 
   // Summary
   emptyLine();

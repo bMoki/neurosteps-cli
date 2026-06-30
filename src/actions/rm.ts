@@ -1,8 +1,9 @@
-import { WORKTREES_DIR, readWorkspaceEnv, hasManager, hasReportServer, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO, REPORT_SERVER_REPO } from "../lib/config";
+import { WORKTREES_DIR, readWorkspaceEnv, hasManager, hasReportServer, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO, REPORT_SERVER_REPO, listBranches } from "../lib/config";
 import { dockerComposeDown, dockerVolumeRm } from "../lib/docker";
 import { removeWorktree, deleteBranch } from "../lib/git";
 import { removeAlias } from "../lib/portless";
 import { confirm as defaultConfirm } from "../lib/prompt";
+import { listFlaggedBranches, STALE_BRANCH_FLAG } from "../lib/branch-flags";
 import { colors, spinner, warn } from "../lib/logger";
 import { join } from "path";
 import { rm } from "fs/promises";
@@ -22,6 +23,12 @@ interface RmDeps {
   rmSnapshots: typeof removeBranchSnapshots;
 }
 
+interface RmFlaggedDeps {
+  list: typeof listBranches;
+  listFlagged: typeof listFlaggedBranches;
+  rm: typeof rmAction;
+}
+
 const defaultDeps: RmDeps = {
   readEnv: readWorkspaceEnv,
   composeDown: dockerComposeDown,
@@ -35,6 +42,33 @@ const defaultDeps: RmDeps = {
   rmDir: (path) => rm(path, { recursive: true, force: true }),
   rmSnapshots: removeBranchSnapshots,
 };
+
+const defaultFlaggedDeps: RmFlaggedDeps = {
+  list: listBranches,
+  listFlagged: listFlaggedBranches,
+  rm: rmAction,
+};
+
+export async function rmFlaggedAction(
+  flag: string,
+  opts: { purge?: boolean; force?: boolean; dryRun?: boolean } = {},
+  deps: Partial<RmFlaggedDeps> = {},
+): Promise<void> {
+  if (flag !== STALE_BRANCH_FLAG) {
+    throw new Error(`Flag '${flag}' não suportada. Flags disponíveis: ${STALE_BRANCH_FLAG}`);
+  }
+
+  const { list, listFlagged, rm } = { ...defaultFlaggedDeps, ...deps };
+  const branches = await listFlagged(list(), flag);
+  if (branches.length === 0) {
+    warn(`Nenhuma branch com flag '${flag}' encontrada.`);
+    return;
+  }
+
+  for (const branch of branches) {
+    await rm(branch, opts);
+  }
+}
 
 export async function rmAction(
   branch: string,
