@@ -4,17 +4,17 @@ import {
   type BranchSetupDeps,
   setupBranchRuntime,
 } from "./branch-setup";
-import { resolveFrontendDir, resolveManagerDir, hasManager } from "../lib/config";
+import { resolveFrontendDir, resolveManagerDir, resolveReportServerDir, hasManager, hasReportServer } from "../lib/config";
 import { pathExists } from "../lib/filesystem";
 import { exec } from "../lib/shell";
 import { join } from "path";
 
 export async function prepareAction(
   branch: string,
-  opts: { noManager?: boolean } = {},
+  opts: { noManager?: boolean; noReportServer?: boolean } = {},
   deps: Partial<BranchSetupDeps> = {},
 ): Promise<void> {
-  const { noManager = false } = opts;
+  const { noManager = false, noReportServer = false } = opts;
   const s = spinner(`Preparando ${branch}...`).start();
 
   const runtime = await setupBranchRuntime(branch, {
@@ -63,6 +63,19 @@ export async function prepareAction(
       }
     }
   }
+  if (!noReportServer && hasReportServer(branch)) {
+    const reportServerDir = resolveReportServerDir(branch);
+    if (!pathExists(join(reportServerDir, "node_modules"))) {
+      s.text = "Instalando dependências do report-server...";
+      const result = await exec(["bun", "install"], { cwd: reportServerDir, silent: true });
+      if (result.exitCode === 0) {
+        s.text = "Dependências do report-server instaladas";
+      } else {
+        warn("Falha ao instalar dependências do report-server");
+        warn("Rode manualmente: bun install em " + reportServerDir);
+      }
+    }
+  }
 
   s.succeed(`Branch ${branch} preparada`);
   emptyLine();
@@ -71,6 +84,9 @@ export async function prepareAction(
   detail("Frontend", runtime.urls.frontend);
   if (runtime.urls.manager) {
     detail("Manager", runtime.urls.manager);
+  }
+  if (runtime.urls.reportServer) {
+    detail("Report-server", runtime.urls.reportServer);
   }
   emptyLine();
   hint(`Próximo passo: ns open ${branch}   # abrir no IDE`);

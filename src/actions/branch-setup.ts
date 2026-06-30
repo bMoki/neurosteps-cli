@@ -40,11 +40,13 @@ export interface BranchRuntime {
     backend: string;
     frontend: string;
     manager?: string;
+    reportServer?: string;
   };
   urls: {
     backend: string;
     frontend: string;
     manager?: string;
+    reportServer?: string;
   };
 }
 
@@ -109,6 +111,9 @@ export async function setupBranchRuntime(
     if (aliases.manager && env.MANAGER_PORT) {
       await regAlias(aliases.manager, env.MANAGER_PORT);
     }
+    if (aliases.reportServer && env.REPORT_SERVER_PORT) {
+      await regAlias(aliases.reportServer, env.REPORT_SERVER_PORT);
+    }
   }
 
   return {
@@ -126,6 +131,7 @@ function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchRunti
     backend: `${aliasSlug}.api.${PRODUCT_NAME}`,
     frontend: `${aliasSlug}.web.${PRODUCT_NAME}`,
     manager: env.MANAGER_PORT ? `${aliasSlug}.manager.${PRODUCT_NAME}` : undefined,
+    reportServer: env.REPORT_SERVER_PORT ? `${aliasSlug}.report-server.${PRODUCT_NAME}` : undefined,
   };
 }
 
@@ -134,5 +140,6 @@ function buildBranchUrls(aliases: BranchRuntime["aliases"]): BranchRuntime["urls
     backend: `https://${aliases.backend}.localhost:${PORTLESS_PROXY_PORT}/api`,
     frontend: `https://${aliases.frontend}.localhost:${PORTLESS_PROXY_PORT}`,
     manager: aliases.manager ? `https://${aliases.manager}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
+    reportServer: aliases.reportServer ? `https://${aliases.reportServer}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
   };
 }

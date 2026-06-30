@@ -1,4 +1,4 @@
-import { WORKTREES_DIR, readWorkspaceEnv, hasManager, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO } from "../lib/config";
+import { WORKTREES_DIR, readWorkspaceEnv, hasManager, hasReportServer, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO, REPORT_SERVER_REPO } from "../lib/config";
 import { dockerComposeDown, dockerVolumeRm } from "../lib/docker";
 import { removeWorktree, deleteBranch } from "../lib/git";
 import { removeAlias } from "../lib/portless";
@@ -6,6 +6,7 @@ import { confirm as defaultConfirm } from "../lib/prompt";
 import { colors, spinner, warn } from "../lib/logger";
 import { join } from "path";
 import { rm } from "fs/promises";
+import { removeBranchSnapshots } from "./snapshot";
 
 interface RmDeps {
   readEnv: typeof readWorkspaceEnv;
@@ -15,8 +16,10 @@ interface RmDeps {
   rmWorktree: typeof removeWorktree;
   delBranch: typeof deleteBranch;
   hasMgr: typeof hasManager;
+  hasRs: typeof hasReportServer;
   confirm: typeof defaultConfirm;
   rmDir: (path: string) => Promise<void>;
+  rmSnapshots: typeof removeBranchSnapshots;
 }
 
 const defaultDeps: RmDeps = {
@@ -27,8 +30,10 @@ const defaultDeps: RmDeps = {
   rmWorktree: removeWorktree,
   delBranch: deleteBranch,
   hasMgr: hasManager,
+  hasRs: hasReportServer,
   confirm: defaultConfirm,
   rmDir: (path) => rm(path, { recursive: true, force: true }),
+  rmSnapshots: removeBranchSnapshots,
 };
 
 export async function rmAction(
@@ -36,7 +41,7 @@ export async function rmAction(
   { purge = false, force = false, dryRun = false }: { purge?: boolean; force?: boolean; dryRun?: boolean } = {},
   deps: Partial<RmDeps> = {},
 ): Promise<void> {
-  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, confirm, rmDir } = {
+  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, hasRs, confirm, rmDir, rmSnapshots } = {
     ...defaultDeps,
     ...deps,
   };
@@ -55,7 +60,11 @@ export async function rmAction(
     hint(`  worktree: ${wtDir}`);
     hint(`  branch local em: ${BACKEND_REPO}, ${FRONTEND_REPO}`);
     if (hasMgr(branch)) hint(`  branch local em: ${MANAGER_REPO}`);
-    if (purge) hint(`  volume Docker: ${env.DB_VOLUME}`);
+    if (hasRs(branch)) hint(`  branch local em: ${REPORT_SERVER_REPO}`);
+    if (purge) {
+      hint(`  volume Docker: ${env.DB_VOLUME}`);
+      hint(`  snapshots da branch ${branch} (volumes + pasta)`);
+    }
     return;
   }
 
@@ -89,11 +98,15 @@ export async function rmAction(
     await rmAlias(`${aliasSlug}.web.${PRODUCT_NAME}`);
     await rmAlias(`${aliasSlug}.api.${PRODUCT_NAME}`);
     if (env.MANAGER_PORT) await rmAlias(`${aliasSlug}.manager.${PRODUCT_NAME}`);
+    if (env.REPORT_SERVER_PORT) await rmAlias(`${aliasSlug}.report-server.${PRODUCT_NAME}`);
   });
 
   if (purge) {
     await step("Removendo volume Docker...", "Volume Docker removido", () =>
       volumeRm(env.DB_VOLUME),
+    );
+    await step("Removendo snapshots...", "Snapshots removidos", () =>
+      rmSnapshots(branch),
     );
   }
 
@@ -101,12 +114,14 @@ export async function rmAction(
     await rmWorktree(BACKEND_REPO, join(wtDir, "backend"), { force });
     await rmWorktree(FRONTEND_REPO, join(wtDir, "frontend"), { force });
     if (hasMgr(branch)) await rmWorktree(MANAGER_REPO, join(wtDir, "manager"), { force });
+    if (hasRs(branch)) await rmWorktree(REPORT_SERVER_REPO, join(wtDir, "report-server"), { force });
   });
 
   await step("Removendo branches locais...", "Branches locais removidas", async () => {
     await delBranch(BACKEND_REPO, branch);
     await delBranch(FRONTEND_REPO, branch);
     if (hasMgr(branch)) await delBranch(MANAGER_REPO, branch);
+    if (hasRs(branch)) await delBranch(REPORT_SERVER_REPO, branch);
   });
 
   await step("Removendo diretório...", `${colors.bold(branch)} removida`, () =>

@@ -23,7 +23,7 @@ export function getAssignedPorts(): Set<number> {
   for (const branch of listBranches()) {
     try {
       const content = readFileSync(join(WORKTREES_DIR, branch, ".workspace.env"), "utf8");
-      for (const key of ["DB_PORT", "BACKEND_PORT", "BACKEND_DEBUG_PORT", "FRONTEND_PORT", "MANAGER_PORT"]) {
+      for (const key of ["DB_PORT", "BACKEND_PORT", "BACKEND_DEBUG_PORT", "FRONTEND_PORT", "MANAGER_PORT", "REPORT_SERVER_PORT"]) {
         const match = content.match(new RegExp(`^${key}="(\\d+)"`, "m"));
         if (match) reserved.add(Number(match[1]));
       }

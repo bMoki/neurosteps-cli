@@ -47,9 +47,9 @@ export function dbCommand(): Command {
     )
     .addCommand(
       new Command("restore")
-        .description("Restaura banco a partir de snapshot")
-        .argument("<branch>", "nome da branch")
-        .argument("<name>", "nome do snapshot")
+        .description("Restaura banco a partir de snapshot (suporta refs cross-branch: origem:nome)")
+        .argument("<branch>", "nome da branch alvo")
+        .argument("<ref>", "ref do snapshot: <nome> ou <origem>:<nome>")
         .option("-f, --force", "pula confirmação")
         .option("-n, --dry-run", "simula a operação sem executar")
         .action((branch, name, opts) => restoreAction(branch, name, opts.force, {}, opts.dryRun)),

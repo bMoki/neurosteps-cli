@@ -253,8 +253,11 @@ ns rm minha-branch --force
 | `ns add manager <branch>` | Adiciona manager a uma workspace existente. | Usa `master` como base por padrão. |
 | `ns add manager <branch> --base <base>` | Adiciona manager a partir de `origin/<base>`. | A base precisa existir no origin do repositório manager. |
 | `ns add manager <branch> --port <port>` | Adiciona manager com porta específica. | Atualiza `.workspace.env`. |
+| `ns add report-server <branch>` | Adiciona report-server a uma workspace existente. | Repo opcional, sob demanda. Usa `master` como base por padrão. |
+| `ns add report-server <branch> --base <base>` | Adiciona report-server a partir de `origin/<base>`. | A base precisa existir no origin do repositório report-server. |
+| `ns add report-server <branch> --port <port>` | Adiciona report-server com porta específica. | Atualiza `.workspace.env`. |
 | `ns rm <branch>` | Remove worktrees e branches locais. | Pede confirmação. |
-| `ns rm <branch> --purge` | Remove também o volume Docker da branch. | Destrutivo para o banco local. |
+| `ns rm <branch> --purge` | Remove também o volume Docker e todos os snapshots da branch. | Destrutivo e irreversível. |
 | `ns rm <branch> --force` | Remove sem confirmação e força remoção de worktrees sujas. | Descarta alterações locais não commitadas nas worktrees. |
 
 ### Comandos de runtime
@@ -300,7 +303,9 @@ ns rm minha-branch --force
 | `ns db snapshots` | Lista snapshots de todas as branches. | Mostra nome, data e volume. |
 | `ns db snapshots <branch>` | Lista snapshots de uma branch. | Filtra por branch. |
 | `ns db restore <branch> <name>` | Restaura snapshot no banco da branch. | Destrutivo, pede confirmação. |
-| `ns db restore <branch> latest` | Restaura o snapshot mais recente. | Usa o ponteiro `latest`. |
+| `ns db restore <branch> latest` | Restaura o snapshot mais recente da própria branch. | Usa o ponteiro `latest` da branch alvo. |
+| `ns db restore <alvo> <origem>:<nome>` | Restaura snapshot de outra branch. | Cross-branch: lookup em `<origem>`, restore em `<alvo>`. |
+| `ns db restore <alvo> <origem>:latest` | Restaura o snapshot mais recente de outra branch. | Resolve `latest` na branch de origem. |
 | `ns db restore <branch> <name> --force` | Restaura sem confirmação. | Use com cuidado. |
 | `ns db rm-snapshot <branch> <name>` | Remove um snapshot. | Remove volume e metadados. |
 | `ns db rm-snapshot <branch> <name> --force` | Remove sem confirmação. | Use com cuidado. |
@@ -336,6 +341,8 @@ Opcionais:
 | `NS_BACKEND_REPO` | `$NS_BASE_DIR/$NS_BACKEND_REPO_NAME` | Caminho absoluto do backend. |
 | `NS_FRONTEND_REPO` | `$NS_BASE_DIR/frontend` | Caminho absoluto do frontend. |
 | `NS_MANAGER_REPO` | `$NS_BASE_DIR/$NS_MANAGER_REPO_NAME` | Caminho absoluto do manager. |
+| `NS_REPORT_SERVER_REPO_NAME` | `report-server` | Nome padrão da pasta do report-server (repo opcional). |
+| `NS_REPORT_SERVER_REPO` | `$NS_BASE_DIR/$NS_REPORT_SERVER_REPO_NAME` | Caminho absoluto do report-server. |
 | `NS_DB_USER` | `postgres` | Usuário PostgreSQL. |
 | `NS_DB_PASSWORD` | `docker` | Senha PostgreSQL. |
 | `NS_DB_NAME` | `app_database` | Nome do banco local. |
@@ -343,6 +350,7 @@ Opcionais:
 | `NS_MASTER_BACKEND_PORT` | `8080` | Porta base para backend. |
 | `NS_MASTER_FRONTEND_PORT` | `3011` | Porta base para frontend. |
 | `NS_MASTER_MANAGER_PORT` | `3020` | Porta base para manager. |
+| `NS_MASTER_REPORT_SERVER_PORT` | `3030` | Porta base para report-server. |
 | `NS_PORTLESS_PROXY_PORT` | `1355` | Porta do proxy Portless. |
 
 ### Comandos destrutivos
@@ -350,7 +358,7 @@ Opcionais:
 | Comando | Impacto |
 | --- | --- |
 | `ns rm <branch>` | Remove worktrees e branches locais. |
-| `ns rm <branch> --purge` | Remove worktrees, branches locais e volume Docker da branch. |
+| `ns rm <branch> --purge` | Remove worktrees, branches locais, volume Docker e todos os snapshots da branch. |
 | `ns rm <branch> --force` | Remove sem confirmação e descarta alterações locais nas worktrees. |
 | `ns db reset <branch>` | Apaga o volume atual da branch e reseeda a partir de `NS_SEED_VOLUME`. |
 | `ns db restore <branch> <snapshot>` | Substitui o banco atual pelo snapshot. |
@@ -370,6 +378,7 @@ Resolução de caminhos:
 | Backend | `NS_BACKEND_REPO`, ou `NS_BASE_DIR/NS_BACKEND_REPO_NAME`. |
 | Frontend | `NS_FRONTEND_REPO`, ou `NS_BASE_DIR/frontend`. |
 | Manager | `NS_MANAGER_REPO`, ou `NS_BASE_DIR/NS_MANAGER_REPO_NAME`. |
+| Report-server | `NS_REPORT_SERVER_REPO`, ou `NS_BASE_DIR/NS_REPORT_SERVER_REPO_NAME`. |
 | Worktrees | `NS_BASE_DIR/worktrees`. |
 | Templates e snapshots | `NS_BASE_DIR/<NS_PRODUCT_NAME>-workspace`. |
 

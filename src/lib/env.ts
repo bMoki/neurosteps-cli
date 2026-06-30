@@ -9,6 +9,7 @@ const envSchema = z.object({
   NS_BACKEND_REPO: z.string().optional(),
   NS_FRONTEND_REPO: z.string().optional(),
   NS_MANAGER_REPO: z.string().optional(),
+  NS_REPORT_SERVER_REPO: z.string().optional(),
 
   // ─── Identidade do produto (OBRIGATÓRIAS) ───
   NS_PRODUCT_NAME: z.string().min(1, "NS_PRODUCT_NAME é obrigatória"),
@@ -16,6 +17,9 @@ const envSchema = z.object({
   NS_BACKEND_CORE_MODULE: z.string().optional(),
   NS_BACKEND_REPO_NAME: z.string().min(1, "NS_BACKEND_REPO_NAME é obrigatória"),
   NS_MANAGER_REPO_NAME: z.string().min(1, "NS_MANAGER_REPO_NAME é obrigatória"),
+  // Optional repo (added on demand via `ns add report-server`) — defaults so the
+  // CLI keeps validating for users that never use it.
+  NS_REPORT_SERVER_REPO_NAME: z.string().default("report-server"),
 
   // ─── Volume de seed (OBRIGATÓRIA) ───
   NS_SEED_VOLUME: z.string().min(1, "NS_SEED_VOLUME é obrigatória"),
@@ -30,6 +34,7 @@ const envSchema = z.object({
   NS_MASTER_BACKEND_PORT: z.coerce.number().default(8080),
   NS_MASTER_FRONTEND_PORT: z.coerce.number().default(3011),
   NS_MASTER_MANAGER_PORT: z.coerce.number().default(3020),
+  NS_MASTER_REPORT_SERVER_PORT: z.coerce.number().default(3030),
   NS_PORTLESS_PROXY_PORT: z.coerce.number().default(1355),
 });
 
@@ -113,12 +118,14 @@ export let SNAPSHOTS_DIR: string;
 export let BACKEND_REPO: string;
 export let FRONTEND_REPO: string;
 export let MANAGER_REPO: string;
+export let REPORT_SERVER_REPO: string;
 
 // ─── Computed constants ───
 export let MASTER_DB_PORT: number;
 export let MASTER_BACKEND_PORT: number;
 export let MASTER_FRONTEND_PORT: number;
 export let MASTER_MANAGER_PORT: number;
+export let MASTER_REPORT_SERVER_PORT: number;
 export let PORTLESS_PROXY_PORT: number;
 
 export let DB_USER: string;
@@ -143,11 +150,13 @@ function applyEnv(nextEnv: EnvVars): void {
   BACKEND_REPO = env.NS_BACKEND_REPO || join(BASE_DIR, env.NS_BACKEND_REPO_NAME);
   FRONTEND_REPO = env.NS_FRONTEND_REPO || join(BASE_DIR, "frontend");
   MANAGER_REPO = env.NS_MANAGER_REPO || join(BASE_DIR, env.NS_MANAGER_REPO_NAME);
+  REPORT_SERVER_REPO = env.NS_REPORT_SERVER_REPO || join(BASE_DIR, env.NS_REPORT_SERVER_REPO_NAME);
 
   MASTER_DB_PORT = env.NS_MASTER_DB_PORT;
   MASTER_BACKEND_PORT = env.NS_MASTER_BACKEND_PORT;
   MASTER_FRONTEND_PORT = env.NS_MASTER_FRONTEND_PORT;
   MASTER_MANAGER_PORT = env.NS_MASTER_MANAGER_PORT;
+  MASTER_REPORT_SERVER_PORT = env.NS_MASTER_REPORT_SERVER_PORT;
   PORTLESS_PROXY_PORT = env.NS_PORTLESS_PROXY_PORT;
 
   DB_USER = env.NS_DB_USER;
@@ -172,6 +181,7 @@ export const workspaceEnvSchema = z.object({
   BACKEND_DEBUG_PORT: z.coerce.number().optional(),
   FRONTEND_PORT: z.coerce.number(),
   MANAGER_PORT: z.coerce.number().optional(),
+  REPORT_SERVER_PORT: z.coerce.number().optional(),
   DB_VOLUME: z.string(),
   DB_CONTAINER: z.string(),
   COMPOSE_PROJECT: z.string(),

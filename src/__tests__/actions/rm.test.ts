@@ -15,6 +15,7 @@ describe("rmAction", () => {
     hasMgr: mock(() => true),
     confirm: mock(() => Promise.resolve(true)),
     rmDir: mock(() => Promise.resolve()),
+    rmSnapshots: mock(() => Promise.resolve()),
   });
 
   test("removes branch with all services", async () => {
@@ -67,6 +68,29 @@ describe("rmAction", () => {
     mocks.confirm = mock(() => Promise.resolve(false));
     await rmAction("feat-123", {}, mocks);
 
+    expect(mocks.composeDown).not.toHaveBeenCalled();
+  });
+
+  test("purge calls rmSnapshots for the branch", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { purge: true, force: true }, mocks);
+
+    expect(mocks.rmSnapshots).toHaveBeenCalledWith("feat-123");
+    expect(mocks.volumeRm).toHaveBeenCalledWith("myapp_db_feat-123");
+  });
+
+  test("non-purge does not call rmSnapshots", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { force: true }, mocks);
+
+    expect(mocks.rmSnapshots).not.toHaveBeenCalled();
+  });
+
+  test("dry-run with purge does not call rmSnapshots or composeDown", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { purge: true, dryRun: true }, mocks);
+
+    expect(mocks.rmSnapshots).not.toHaveBeenCalled();
     expect(mocks.composeDown).not.toHaveBeenCalled();
   });
 
