@@ -5,6 +5,7 @@ import {
   FRONTEND_REPO,
   MANAGER_REPO,
   REPORT_SERVER_REPO,
+  DOCS_REPO,
   workspaceEnvSchema,
   type WorkspaceEnv,
 } from "./env";
@@ -34,6 +35,7 @@ export {
   FRONTEND_REPO,
   MANAGER_REPO,
   REPORT_SERVER_REPO,
+  DOCS_REPO,
 } from "./env";
 
 export type { WorkspaceEnv };
@@ -123,6 +125,19 @@ export function resolveReportServerDir(branch: string): string {
 export function hasReportServer(branch: string): boolean {
   try {
     return pathExists(join(WORKTREES_DIR, branch, "report-server"));
+  } catch {
+    return false;
+  }
+}
+
+export function resolveDocsDir(branch: string): string {
+  const wt = join(WORKTREES_DIR, branch, "docs");
+  return pathExists(wt) ? wt : DOCS_REPO;
+}
+
+export function hasDocs(branch: string): boolean {
+  try {
+    return pathExists(join(WORKTREES_DIR, branch, "docs"));
   } catch {
     return false;
   }

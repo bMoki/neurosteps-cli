@@ -1,6 +1,7 @@
 import { join } from "path";
 import {
   BACKEND_CORE_MODULE,
+  DOCS_REPO,
   MANAGER_REPO,
   REPORT_SERVER_REPO,
   PORTLESS_PROXY_PORT,
@@ -228,6 +229,23 @@ async function addReportServerToCodeWorkspace(workspaceFile: string, exists: (pa
   await Bun.write(workspaceFile, `${JSON.stringify(parsed, null, 2)}\n`);
 }
 
+async function addDocsToCodeWorkspace(workspaceFile: string, exists: (path: string) => boolean): Promise<void> {
+  if (!exists(workspaceFile)) {
+    return;
+  }
+
+  const content = await Bun.file(workspaceFile).text();
+  const parsed = JSON.parse(content) as { folders?: Array<{ name?: string; path?: string }>; [key: string]: unknown };
+  const folders = Array.isArray(parsed.folders) ? parsed.folders : [];
+
+  if (!folders.some((folder) => folder.path === "docs" || folder.name === "docs")) {
+    folders.push({ name: "docs", path: "docs" });
+  }
+
+  parsed.folders = folders;
+  await Bun.write(workspaceFile, `${JSON.stringify(parsed, null, 2)}\n`);
+}
+
 interface AddReportServerDeps {
   readEnv: typeof readWorkspaceEnv;
   fetch: typeof fetchOrigin;
@@ -367,5 +385,106 @@ export async function addReportServerAction(
   detail("Report-server", `localhost:${reportServerPort}`);
   section("Próximos passos");
   detail("1", `ns prepare ${branch}`);
+  detail("2", `ns open ${branch}`);
+}
+
+interface AddDocsDeps {
+  readEnv: typeof readWorkspaceEnv;
+  fetch: typeof fetchOrigin;
+  branchExistsOrigin: typeof branchExistsOnOrigin;
+  localExists: typeof localBranchExists;
+  trackBranch: typeof createTrackingBranch;
+  localBranch: typeof createLocalBranch;
+  worktree: typeof createWorktree;
+  shell: typeof exec;
+  exists: (path: string) => boolean;
+  ensureBootstrap: typeof ensureWorkspaceBootstrap;
+}
+
+const defaultDocsDeps: AddDocsDeps = {
+  readEnv: readWorkspaceEnv,
+  fetch: fetchOrigin,
+  branchExistsOrigin: branchExistsOnOrigin,
+  localExists: localBranchExists,
+  trackBranch: createTrackingBranch,
+  localBranch: createLocalBranch,
+  worktree: createWorktree,
+  shell: execChecked,
+  exists: pathExists,
+  ensureBootstrap: ensureWorkspaceBootstrap,
+};
+
+export async function addDocsAction(
+  branch: string,
+  opts: { base?: string } = {},
+  deps: Partial<AddDocsDeps> = {},
+): Promise<void> {
+  const {
+    readEnv,
+    fetch,
+    branchExistsOrigin,
+    localExists,
+    trackBranch,
+    localBranch,
+    worktree,
+    shell,
+    exists,
+    ensureBootstrap,
+  } = { ...defaultDocsDeps, ...deps };
+
+  const s = spinner(`Adicionando docs em ${branch}...`).start();
+
+  const wtDir = join(WORKTREES_DIR, branch);
+  const workspaceEnv = join(wtDir, ".workspace.env");
+  const docsDir = join(wtDir, "docs");
+  const baseBranch = opts.base || "master";
+  const baseOriginBranch = baseBranch.replace(/^origin\//, "");
+  const baseRef = `origin/${baseOriginBranch}`;
+
+  const env = await readEnv(branch);
+  if (!env || !exists(workspaceEnv)) {
+    s.fail(`Worktree '${branch}' não encontrada`);
+    process.exit(1);
+  }
+
+  if (exists(docsDir)) {
+    s.fail(`Docs já existe em ${docsDir}`);
+    process.exit(1);
+  }
+
+  if (!exists(join(DOCS_REPO, ".git"))) {
+    s.fail(`Repositório Docs não encontrado em ${DOCS_REPO}`);
+    process.exit(1);
+  }
+
+  await ensureBootstrap();
+
+  s.text = "Configurando branch do docs...";
+  await fetch(DOCS_REPO);
+  const hasRemote = await branchExistsOrigin(DOCS_REPO, branch);
+  if (hasRemote) {
+    if (!localExists(DOCS_REPO, branch)) {
+      await trackBranch(DOCS_REPO, branch);
+    }
+  } else if (!localExists(DOCS_REPO, branch)) {
+    if (!(await branchExistsOrigin(DOCS_REPO, baseOriginBranch))) {
+      s.fail(`Branch base '${baseRef}' não existe no docs`);
+      process.exit(1);
+    }
+    await localBranch(DOCS_REPO, branch, baseRef);
+  }
+
+  s.text = "Criando worktree do docs...";
+  await shell(["mkdir", "-p", wtDir], { silent: true });
+  await worktree(DOCS_REPO, docsDir, branch);
+
+  await addDocsToCodeWorkspace(join(wtDir, `${branch}.code-workspace`), exists);
+
+  s.succeed(`Docs adicionado em '${branch}'`);
+  emptyLine();
+  section("Paths");
+  detail("Docs", docsDir);
+  section("Próximos passos");
+  detail("1", `ns doctor ${branch}`);
   detail("2", `ns open ${branch}`);
 }

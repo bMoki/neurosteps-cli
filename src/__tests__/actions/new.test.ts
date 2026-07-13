@@ -43,7 +43,7 @@ describe("newAction", () => {
     try {
       await newAction("feat-123", "master", false, mocks);
       expect(mocks.allocate).toHaveBeenCalledWith(false);
-      expect(mocks.worktree).toHaveBeenCalledTimes(2);
+      expect(mocks.worktree).toHaveBeenCalledTimes(3);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
     } finally {
       Bun.file = originalFile;
@@ -77,7 +77,7 @@ describe("newAction", () => {
     try {
       await newAction("feat-123", "master", true, mocks);
       expect(mocks.allocate).toHaveBeenCalledWith(true);
-      expect(mocks.worktree).toHaveBeenCalledTimes(3);
+      expect(mocks.worktree).toHaveBeenCalledTimes(4);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
     } finally {
       Bun.file = originalFile;

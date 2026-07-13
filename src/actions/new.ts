@@ -12,6 +12,7 @@ import {
   BACKEND_REPO,
   FRONTEND_REPO,
   MANAGER_REPO,
+  DOCS_REPO,
   slugify,
 } from "../lib/config";
 import {
@@ -89,6 +90,7 @@ export async function newAction(
   for (const [repo, name] of [
     [BACKEND_REPO, "Backend"],
     [FRONTEND_REPO, "Frontend"],
+    [DOCS_REPO, "Docs"],
   ] as const) {
     if (!(await pathExistsAsync(join(repo, ".git")))) {
       s.stop();
@@ -103,7 +105,7 @@ export async function newAction(
   }
 
   // Validate base branch on origin. Local base branches may be absent after rm.
-  for (const repo of [BACKEND_REPO, FRONTEND_REPO]) {
+  for (const repo of [BACKEND_REPO, FRONTEND_REPO, DOCS_REPO]) {
     if (!(await branchExistsOrigin(repo, baseOriginBranch))) {
       s.stop();
       throw new Error(`Branch base '${baseRef}' não existe em ${repo}`);
@@ -119,8 +121,9 @@ export async function newAction(
   // Check origin
   const originBackend = await branchExistsOrigin(BACKEND_REPO, branch);
   const originFrontend = await branchExistsOrigin(FRONTEND_REPO, branch);
+  const originDocs = await branchExistsOrigin(DOCS_REPO, branch);
   const originManager = withManager ? await branchExistsOrigin(MANAGER_REPO, branch) : false;
-  const useExisting = originBackend || originFrontend || originManager;
+  const useExisting = originBackend || originFrontend || originDocs || originManager;
 
   // Check worktree doesn't exist
   if (await pathExistsAsync(join(WORKTREES_DIR, branch, ".workspace.env"))) {
@@ -149,6 +152,7 @@ export async function newAction(
 
   await setupRepo(BACKEND_REPO, "Backend");
   await setupRepo(FRONTEND_REPO, "Frontend");
+  await setupRepo(DOCS_REPO, "Docs");
   if (withManager) {
     await setupRepo(MANAGER_REPO, "Manager");
   }
@@ -259,6 +263,7 @@ volumes:
   const folders = [
     { name: "backend", path: "backend" },
     { name: "frontend", path: "frontend" },
+    { name: "docs", path: "docs" },
   ];
   if (withManager) {
     folders.push({ name: "manager", path: "manager" });
@@ -352,6 +357,7 @@ volumes:
   section("Paths");
   detail("Backend", `${WORKTREES_DIR}/${branch}/backend`);
   detail("Frontend", `${WORKTREES_DIR}/${branch}/frontend`);
+  detail("Docs", `${WORKTREES_DIR}/${branch}/docs`);
   if (withManager) {
     detail("Manager", `${WORKTREES_DIR}/${branch}/manager`);
   }

@@ -33,8 +33,9 @@ function detectGitRepos(baseDir: string): Array<{ name: string; path: string }> 
   return repos;
 }
 
-function classifyRepo(name: string): "backend" | "frontend" | "manager" | "other" {
+function classifyRepo(name: string): "backend" | "frontend" | "manager" | "docs" | "other" {
   const lower = name.toLowerCase();
+  if (lower === "docs" || lower.includes("documentation")) return "docs";
   if (lower.includes("backend") || lower.includes("api") || lower.includes("server")) return "backend";
   if (lower.includes("frontend") || lower.includes("web") || lower.includes("client")) return "frontend";
   if (lower.includes("manager") || lower.includes("admin") || lower.includes("dashboard")) return "manager";
@@ -198,6 +199,7 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
   const detectedBackend = detected.find((r) => classifyRepo(r.name) === "backend");
   const detectedFrontend = detected.find((r) => classifyRepo(r.name) === "frontend");
   const detectedManager = detected.find((r) => classifyRepo(r.name) === "manager");
+  const detectedDocs = detected.find((r) => classifyRepo(r.name) === "docs");
 
   // Auto-detect values from repos
   const autoBackendModule = detectedBackend ? detectBackendModule(detectedBackend.path) : undefined;
@@ -235,14 +237,21 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
     detectedManager?.name || "",
   );
 
+  await askIfNeeded(
+    "NS_DOCS_REPO_NAME",
+    "Nome da pasta do repo docs:",
+    detectedDocs?.name || "docs",
+  );
+
   // 5. Confirm detected repo paths
   console.log("");
   info("Repos detectados em " + baseDir + ":");
   if (detectedBackend) ok(`  [backend] ${detectedBackend.name}`);
   if (detectedFrontend) ok(`  [frontend] ${detectedFrontend.name}`);
   if (detectedManager) ok(`  [manager] ${detectedManager.name}`);
+  if (detectedDocs) ok(`  [docs] ${detectedDocs.name}`);
 
-  if (detectedBackend || detectedFrontend || detectedManager) {
+  if (detectedBackend || detectedFrontend || detectedManager || detectedDocs) {
     const useDetected = await confirm({
       message: "Usar caminhos detectados?",
       default: true,
@@ -252,6 +261,7 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
       if (detectedBackend) config.NS_BACKEND_REPO = detectedBackend.path;
       if (detectedFrontend) config.NS_FRONTEND_REPO = detectedFrontend.path;
       if (detectedManager) config.NS_MANAGER_REPO = detectedManager.path;
+      if (detectedDocs) config.NS_DOCS_REPO = detectedDocs.path;
     }
   }
 
@@ -358,10 +368,12 @@ export async function initAction(opts: InitOptions = {}): Promise<void> {
     NS_BACKEND_CORE_MODULE: String(config.NS_BACKEND_CORE_MODULE ?? existing.NS_BACKEND_CORE_MODULE ?? `${String(config.NS_BACKEND_MODULE ?? existing.NS_BACKEND_MODULE ?? "")}-core`),
     NS_BACKEND_REPO_NAME: String(config.NS_BACKEND_REPO_NAME ?? existing.NS_BACKEND_REPO_NAME ?? ""),
     NS_MANAGER_REPO_NAME: String(config.NS_MANAGER_REPO_NAME ?? existing.NS_MANAGER_REPO_NAME ?? ""),
+    NS_DOCS_REPO_NAME: String(config.NS_DOCS_REPO_NAME ?? existing.NS_DOCS_REPO_NAME ?? "docs"),
     NS_SEED_VOLUME: String(config.NS_SEED_VOLUME ?? existing.NS_SEED_VOLUME ?? ""),
     NS_BACKEND_REPO: String(config.NS_BACKEND_REPO ?? existing.NS_BACKEND_REPO ?? join(String(config.NS_BASE_DIR ?? existing.NS_BASE_DIR ?? join(homedir(), "Developer")), String(config.NS_BACKEND_REPO_NAME ?? existing.NS_BACKEND_REPO_NAME ?? ""))),
     NS_FRONTEND_REPO: String(config.NS_FRONTEND_REPO ?? existing.NS_FRONTEND_REPO ?? join(String(config.NS_BASE_DIR ?? existing.NS_BASE_DIR ?? join(homedir(), "Developer")), "frontend")),
     NS_MANAGER_REPO: String(config.NS_MANAGER_REPO ?? existing.NS_MANAGER_REPO ?? join(String(config.NS_BASE_DIR ?? existing.NS_BASE_DIR ?? join(homedir(), "Developer")), String(config.NS_MANAGER_REPO_NAME ?? existing.NS_MANAGER_REPO_NAME ?? ""))),
+    NS_DOCS_REPO: String(config.NS_DOCS_REPO ?? existing.NS_DOCS_REPO ?? join(String(config.NS_BASE_DIR ?? existing.NS_BASE_DIR ?? join(homedir(), "Developer")), String(config.NS_DOCS_REPO_NAME ?? existing.NS_DOCS_REPO_NAME ?? "docs"))),
     NS_DB_USER: String(config.NS_DB_USER ?? existing.NS_DB_USER ?? "postgres"),
     NS_DB_PASSWORD: String(config.NS_DB_PASSWORD ?? existing.NS_DB_PASSWORD ?? "docker"),
     NS_DB_NAME: String(config.NS_DB_NAME ?? existing.NS_DB_NAME ?? "app_database"),

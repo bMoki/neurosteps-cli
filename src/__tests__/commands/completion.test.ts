@@ -33,11 +33,12 @@ describe("completion fish", () => {
     expect(script).toContain("close");
   });
 
-  test("add completion includes manager subcommand and branches", () => {
+  test("add completion includes add subcommands and branches", () => {
     const script = renderFishCompletion(["FEAT-123"], "/tmp/worktrees");
 
     expect(script).toContain("function __ns_add_subs");
     expect(script).toContain("manager");
+    expect(script).toContain("docs");
     expect(script).toContain('complete -c ns -n "__ns_needs_add_subcommand" -a "(__ns_add_subs)"');
     expect(script).toContain('complete -c ns -n "__ns_needs_add_branch" -a "(__ns_branches)"');
   });
@@ -118,15 +119,16 @@ describe("completion bash", () => {
     const script = renderBashCompletion(["FEAT-123"], "/tmp/snapshots");
     expect(script).toContain('_ns_snapshot_names()');
     expect(script).toContain('/tmp/snapshots');
-    expect(script).toContain('restore|rm-snapshot');
+    expect(script).toContain('rm-snapshot)');
+    expect(script).toContain('restore)');
     expect(script).toContain('printf "%s\\n" latest');
   });
 
-  test("add manager and report-server complete branches", () => {
+  test("add subcommands complete branches", () => {
     const script = renderBashCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local add_subs="manager report-server"');
-    expect(script).toContain('if { [ "${COMP_WORDS[2]}" = "manager" ] || [ "${COMP_WORDS[2]}" = "report-server" ]; } && [ $COMP_CWORD -eq 3 ]; then');
+    expect(script).toContain('local add_subs="manager docs report-server"');
+    expect(script).toContain('manager|docs|report-server');
     expect(script).not.toContain('COMPREPLY=( $(compgen -W "$branches" -- "$cur") )\n}');
   });
 
@@ -154,16 +156,17 @@ describe("completion zsh", () => {
     expect(script).toContain('_ns_snapshot_names()');
     expect(script).toContain('/tmp/snapshots');
     expect(script).toContain('snapshot_names=(');
-    expect(script).toContain('restore|rm-snapshot');
+    expect(script).toContain('rm-snapshot)');
+    expect(script).toContain('restore)');
   });
 
-  test("add manager and report-server complete branches", () => {
+  test("add subcommands complete branches", () => {
     const script = renderZshCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local -a add_subs=("manager" "report-server")');
+    expect(script).toContain('local -a add_subs=("manager" "docs" "report-server")');
     expect(script).toContain('case "$words[2]" in');
     expect(script).toContain('add)');
-    expect(script).toContain('[[ "$words[3]" == "manager" || "$words[3]" == "report-server" ]] && (( CURRENT == 4 ))');
+    expect(script).toContain('manager|docs|report-server');
     expect(script).toContain("_describe 'branch' branches");
   });
 });

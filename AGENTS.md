@@ -37,11 +37,13 @@ All configuration is via env vars validated by Zod in `src/lib/env.ts`:
 | `NS_BACKEND_MODULE` | Yes | Backend module name |
 | `NS_BACKEND_REPO_NAME` | Yes | Backend repo folder name |
 | `NS_MANAGER_REPO_NAME` | Yes | Manager repo folder name |
+| `NS_DOCS_REPO_NAME` | No | Docs repo folder name (default: `docs`) |
 | `NS_SEED_VOLUME` | Yes | Full Docker volume name for DB seeding |
 | `NS_BASE_DIR` | No | Base directory (default: `~/Developer`) |
 | `NS_BACKEND_REPO` | No | Override backend repo path |
 | `NS_FRONTEND_REPO` | No | Override frontend repo path |
 | `NS_MANAGER_REPO` | No | Override manager repo path |
+| `NS_DOCS_REPO` | No | Override docs repo path |
 | `NS_DB_USER` | No | PostgreSQL user (default: `postgres`) |
 | `NS_DB_PASSWORD` | No | PostgreSQL password (default: `docker`) |
 | `NS_DB_NAME` | No | PostgreSQL database (default: `app_database`) |

@@ -13,6 +13,7 @@ describe("rmAction", () => {
     rmWorktree: mock(() => Promise.resolve()),
     delBranch: mock(() => Promise.resolve()),
     hasMgr: mock(() => true),
+    hasDocsRepo: mock(() => true),
     confirm: mock(() => Promise.resolve(true)),
     rmDir: mock(() => Promise.resolve()),
     rmSnapshots: mock(() => Promise.resolve()),
@@ -25,13 +26,14 @@ describe("rmAction", () => {
     expect(mocks.readEnv).toHaveBeenCalledWith("feat-123");
     expect(mocks.composeDown).toHaveBeenCalled();
     expect(mocks.rmAlias).toHaveBeenCalledTimes(3);
-    expect(mocks.rmWorktree).toHaveBeenCalledTimes(3);
+    expect(mocks.rmWorktree).toHaveBeenCalledTimes(4);
     expect(mocks.rmWorktree.mock.calls.map((call) => call[2])).toEqual([
       { force: true },
       { force: true },
       { force: true },
+      { force: true },
     ]);
-    expect(mocks.delBranch).toHaveBeenCalledTimes(3);
+    expect(mocks.delBranch).toHaveBeenCalledTimes(4);
     expect(mocks.rmDir).toHaveBeenCalledTimes(1);
   });
 
@@ -50,6 +52,7 @@ describe("rmAction", () => {
     expect(mocks.confirm).toHaveBeenCalled();
     expect(mocks.volumeRm).toHaveBeenCalledWith("myapp_db_feat-123");
     expect(mocks.rmWorktree.mock.calls.map((call) => call[2])).toEqual([
+      { force: false },
       { force: false },
       { force: false },
       { force: false },

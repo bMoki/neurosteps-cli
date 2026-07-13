@@ -86,6 +86,7 @@ const DB_RESTORE_REF_SUBCOMMANDS = [
 
 const ADD_SUBCOMMANDS = [
   "manager",
+  "docs",
   "report-server",
 ];
 
@@ -233,7 +234,7 @@ function __ns_needs_add_branch
   if test (count $tokens) -lt 3 -o "$tokens[2]" != "add"
     return 1
   end
-  if test "$tokens[3]" != "manager" -a "$tokens[3]" != "report-server"
+  if not contains -- $tokens[3] ${addSubs}
     return 1
   end
   if test (count $tokens) -eq 3
@@ -562,10 +563,14 @@ _ns_completions() {
         COMPREPLY=( $(compgen -W "$add_subs" -- "$cur") )
         return
       fi
-      if { [ "\${COMP_WORDS[2]}" = "manager" ] || [ "\${COMP_WORDS[2]}" = "report-server" ]; } && [ $COMP_CWORD -eq 3 ]; then
-        COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
-        return
-      fi
+      case "\${COMP_WORDS[2]}" in
+        ${ADD_SUBCOMMANDS.join("|")})
+          if [ $COMP_CWORD -eq 3 ]; then
+            COMPREPLY=( $(compgen -W "$(_ns_branches)" -- "$cur") )
+            return
+          fi
+          ;;
+      esac
       ;;
     db)
       if [ $COMP_CWORD -eq 2 ]; then
@@ -711,10 +716,14 @@ _ns() {
         _describe 'add subcommand' add_subs
         return
       fi
-      if [[ "$words[3]" == "manager" || "$words[3]" == "report-server" ]] && (( CURRENT == 4 )); then
-        _describe 'branch' branches
-        return
-      fi
+      case "$words[3]" in
+        ${ADD_SUBCOMMANDS.join("|")})
+          if (( CURRENT == 4 )); then
+            _describe 'branch' branches
+            return
+          fi
+          ;;
+      esac
       ;;
     db)
       if (( CURRENT == 3 )); then

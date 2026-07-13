@@ -43,6 +43,29 @@ describe("newAction paths", () => {
     }
   });
 
+  test("uses existing remote branch from docs", async () => {
+    const mocks = createMocks();
+    mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
+      branch === "master" || (branch === "feat-123" && repo.endsWith("/docs"))
+    ));
+    mocks.localExists = mock((repo: string, branch: string) => branch === "master");
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(
+        path.includes(".git") ||
+        !path.includes("worktrees") ||
+        path.includes("templates")
+      ),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", false, mocks);
+      expect(mocks.trackBranch).toHaveBeenCalledWith(expect.stringContaining("docs"), "feat-123");
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
   test("creates local branches from origin base", async () => {
     const mocks = createMocks();
     mocks.localExists = mock((repo: string, branch: string) => branch === "master");
@@ -98,6 +121,27 @@ describe("newAction paths", () => {
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
       expect((e as Error).message).toContain("origin/master");
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
+  test("exits when base branch missing in docs", async () => {
+    const mocks = createMocks();
+    mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
+      branch === "master" && !repo.endsWith("/docs")
+    ));
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(path.includes(".git")),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", false, mocks);
+      expect(false).toBe(true);
+    } catch (e) {
+      expect(e).toBeInstanceOf(Error);
+      expect((e as Error).message).toContain("origin/master");
+      expect((e as Error).message).toContain("docs");
     } finally {
       Bun.file = originalFile;
     }

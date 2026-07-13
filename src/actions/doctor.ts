@@ -8,6 +8,7 @@ import {
   PORTLESS_PROXY_PORT,
   BACKEND_CORE_MODULE,
   SEED_VOLUME,
+  DOCS_REPO,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
 import { dockerVolumeExists, dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
@@ -103,6 +104,7 @@ export async function doctorAction(
   const wtDir = join(WORKTREES_DIR, branch);
   const backendDir = join(wtDir, "backend");
   const frontendDir = join(wtDir, "frontend");
+  const docsDir = join(wtDir, "docs");
 
   // 1. Worktree
   section("Worktree");
@@ -309,6 +311,20 @@ export async function doctorAction(
     }
   } else {
     checkFail("Worktree do frontend não encontrado");
+  }
+
+  // 4b. Docs
+  section("Docs");
+  if (dirExists(docsDir)) {
+    checkPass("Worktree existe");
+    if (pathExists(join(docsDir, ".git"))) {
+      checkPass("Metadados Git encontrados");
+    } else {
+      checkFail("Metadados Git não encontrados");
+    }
+  } else {
+    checkFail(`Worktree do docs não encontrada: ${docsDir}`);
+    console.log(colors.info(`    → Repositório base esperado: ${DOCS_REPO}`));
   }
 
   // 5. Manager

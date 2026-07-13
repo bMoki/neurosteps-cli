@@ -74,7 +74,7 @@ Você pode ver a configuração atual com:
 ns config env
 ```
 
-Se os repositórios não estiverem nos caminhos padrão, configure caminhos absolutos no assistente ou via variáveis `NS_BACKEND_REPO`, `NS_FRONTEND_REPO` e `NS_MANAGER_REPO`.
+Se os repositórios não estiverem nos caminhos padrão, configure caminhos absolutos no assistente ou via variáveis `NS_BACKEND_REPO`, `NS_FRONTEND_REPO`, `NS_MANAGER_REPO` e `NS_DOCS_REPO`.
 
 ### 4. Crie a primeira workspace
 
@@ -341,6 +341,8 @@ Opcionais:
 | `NS_BACKEND_REPO` | `$NS_BASE_DIR/$NS_BACKEND_REPO_NAME` | Caminho absoluto do backend. |
 | `NS_FRONTEND_REPO` | `$NS_BASE_DIR/frontend` | Caminho absoluto do frontend. |
 | `NS_MANAGER_REPO` | `$NS_BASE_DIR/$NS_MANAGER_REPO_NAME` | Caminho absoluto do manager. |
+| `NS_DOCS_REPO_NAME` | `docs` | Nome padrão da pasta do docs. |
+| `NS_DOCS_REPO` | `$NS_BASE_DIR/$NS_DOCS_REPO_NAME` | Caminho absoluto do docs. |
 | `NS_REPORT_SERVER_REPO_NAME` | `report-server` | Nome padrão da pasta do report-server (repo opcional). |
 | `NS_REPORT_SERVER_REPO` | `$NS_BASE_DIR/$NS_REPORT_SERVER_REPO_NAME` | Caminho absoluto do report-server. |
 | `NS_DB_USER` | `postgres` | Usuário PostgreSQL. |
@@ -378,6 +380,7 @@ Resolução de caminhos:
 | Backend | `NS_BACKEND_REPO`, ou `NS_BASE_DIR/NS_BACKEND_REPO_NAME`. |
 | Frontend | `NS_FRONTEND_REPO`, ou `NS_BASE_DIR/frontend`. |
 | Manager | `NS_MANAGER_REPO`, ou `NS_BASE_DIR/NS_MANAGER_REPO_NAME`. |
+| Docs | `NS_DOCS_REPO`, ou `NS_BASE_DIR/NS_DOCS_REPO_NAME`. |
 | Report-server | `NS_REPORT_SERVER_REPO`, ou `NS_BASE_DIR/NS_REPORT_SERVER_REPO_NAME`. |
 | Worktrees | `NS_BASE_DIR/worktrees`. |
 | Templates e snapshots | `NS_BASE_DIR/<NS_PRODUCT_NAME>-workspace`. |

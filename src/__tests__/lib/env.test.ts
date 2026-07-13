@@ -8,6 +8,7 @@ import {
   DB_USER,
   FRONTEND_REPO,
   MANAGER_REPO,
+  DOCS_REPO,
   PRODUCT_NAME,
   WORKSPACE_DIR,
   env,
@@ -26,10 +27,12 @@ const trackedEnvKeys = [
   "NS_BACKEND_CORE_MODULE",
   "NS_BACKEND_REPO_NAME",
   "NS_MANAGER_REPO_NAME",
+  "NS_DOCS_REPO_NAME",
   "NS_SEED_VOLUME",
   "NS_BACKEND_REPO",
   "NS_FRONTEND_REPO",
   "NS_MANAGER_REPO",
+  "NS_DOCS_REPO",
   "NS_DB_USER",
   "NS_DB_PASSWORD",
   "NS_DB_NAME",
@@ -76,10 +79,12 @@ describe("env reload", () => {
         NS_BACKEND_CORE_MODULE: "alpha-core",
         NS_BACKEND_REPO_NAME: "alpha-backend",
         NS_MANAGER_REPO_NAME: "alpha-manager",
+        NS_DOCS_REPO_NAME: "alpha-docs",
         NS_SEED_VOLUME: "alpha_seed",
         NS_BACKEND_REPO: "",
         NS_FRONTEND_REPO: "",
         NS_MANAGER_REPO: "",
+        NS_DOCS_REPO: "",
       },
       async () => {
         expect(env.NS_PRODUCT_NAME).toBe("alpha");
@@ -89,11 +94,13 @@ describe("env reload", () => {
         expect(BACKEND_REPO).toBe(join("/tmp/ns-reload-one", "alpha-backend"));
         expect(FRONTEND_REPO).toBe(join("/tmp/ns-reload-one", "frontend"));
         expect(MANAGER_REPO).toBe(join("/tmp/ns-reload-one", "alpha-manager"));
+        expect(DOCS_REPO).toBe(join("/tmp/ns-reload-one", "alpha-docs"));
 
         process.env.NS_BASE_DIR = "/tmp/ns-reload-two";
         process.env.NS_PRODUCT_NAME = "beta";
         process.env.NS_BACKEND_REPO_NAME = "beta-backend";
         process.env.NS_MANAGER_REPO_NAME = "beta-manager";
+        process.env.NS_DOCS_REPO_NAME = "beta-docs";
         process.env.NS_SEED_VOLUME = "beta_seed";
         await reloadEnv();
 
@@ -104,6 +111,7 @@ describe("env reload", () => {
         expect(BACKEND_REPO).toBe(join("/tmp/ns-reload-two", "beta-backend"));
         expect(FRONTEND_REPO).toBe(join("/tmp/ns-reload-two", "frontend"));
         expect(MANAGER_REPO).toBe(join("/tmp/ns-reload-two", "beta-manager"));
+        expect(DOCS_REPO).toBe(join("/tmp/ns-reload-two", "beta-docs"));
       },
     );
   });
