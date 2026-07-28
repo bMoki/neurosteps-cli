@@ -11,6 +11,7 @@ describe("newAction", () => {
     localExists: mock((repo: string, branch: string) => true),
     worktree: mock((repo: string, path: string, branch: string) => Promise.resolve()),
     allocate: mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015 })),
+    copyTpl: mock((src: string, dst: string, variables: Record<string, string>) => Promise.resolve()),
     volumeCreate: mock((name: string) => Promise.resolve()),
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
@@ -45,6 +46,29 @@ describe("newAction", () => {
       expect(mocks.allocate).toHaveBeenCalledWith(false);
       expect(mocks.worktree).toHaveBeenCalledTimes(3);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
+  test("registers backend core pom as IntelliJ Maven project", async () => {
+    const mocks = createMocks();
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(
+        path.includes(".git") ||
+        !path.includes("worktrees") ||
+        path.includes("templates")
+      ),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", false, mocks);
+      expect(mocks.copyTpl).toHaveBeenCalledWith(
+        expect.stringContaining("templates/idea/workspace.xml"),
+        expect.stringContaining(".idea/workspace.xml"),
+        expect.objectContaining({ BACKEND_CORE_MODULE: "scalemed-core" }),
+      );
     } finally {
       Bun.file = originalFile;
     }

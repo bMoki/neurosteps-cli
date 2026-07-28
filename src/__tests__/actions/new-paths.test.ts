@@ -14,6 +14,7 @@ describe("newAction paths", () => {
     localExists: mock((repo: string, branch: string) => true),
     worktree: mock((repo: string, path: string, branch: string) => Promise.resolve()),
     allocate: mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015 })),
+    copyTpl: mock((src: string, dst: string, variables: Record<string, string>) => Promise.resolve()),
     volumeCreate: mock((name: string) => Promise.resolve()),
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),

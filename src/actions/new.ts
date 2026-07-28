@@ -41,6 +41,7 @@ interface NewDeps {
   localExists: typeof localBranchExists;
   worktree: typeof createWorktree;
   allocate: typeof allocatePorts;
+  copyTpl: typeof copyTemplate;
   volumeCreate: typeof dockerVolumeCreate;
   volumeCopy: typeof dockerVolumeCopy;
   shell: typeof exec;
@@ -55,6 +56,7 @@ const defaultDeps: NewDeps = {
   localExists: localBranchExists,
   worktree: createWorktree,
   allocate: allocatePorts,
+  copyTpl: copyTemplate,
   volumeCreate: dockerVolumeCreate,
   volumeCopy: dockerVolumeCopy,
   shell: execChecked,
@@ -75,6 +77,7 @@ export async function newAction(
     localExists,
     worktree,
     allocate,
+    copyTpl,
     volumeCreate,
     volumeCopy,
     shell,
@@ -169,7 +172,7 @@ export async function newAction(
   // Generate workspace env
   const workspaceEnv = join(WORKTREES_DIR, branch, ".workspace.env");
   await shell(["mkdir", "-p", join(workspaceEnv, "..")], { silent: true });
-  await copyTemplate(join(WORKSPACE_DIR, "templates/workspace.env"), workspaceEnv, {
+  await copyTpl(join(WORKSPACE_DIR, "templates/workspace.env"), workspaceEnv, {
     BRANCH_NAME: branch,
     BRANCH_SLUG: branchSlug,
     DB_PORT: String(ports.db),
@@ -190,7 +193,7 @@ export async function newAction(
   // Copy templates
   const backendProps = join(WORKTREES_DIR, branch, `backend/${BACKEND_CORE_MODULE}/src/main/resources/application-dev.properties`);
   await shell(["mkdir", "-p", join(backendProps, "..")], { silent: true });
-  await copyTemplate(join(WORKSPACE_DIR, "templates/backend-application-dev.properties"), backendProps, {
+  await copyTpl(join(WORKSPACE_DIR, "templates/backend-application-dev.properties"), backendProps, {
     DB_PORT: String(ports.db),
     BACKEND_PORT: String(ports.backend),
     BRANCH_NAME: branch,
@@ -202,7 +205,7 @@ export async function newAction(
     DB_NAME,
   });
 
-  await copyTemplate(join(WORKSPACE_DIR, "templates/frontend-.env.local"), join(frontendWt, ".env.local"), {
+  await copyTpl(join(WORKSPACE_DIR, "templates/frontend-.env.local"), join(frontendWt, ".env.local"), {
     BRANCH_NAME: branch,
     BRANCH_SLUG: branchSlug,
     FRONTEND_PORT: String(ports.frontend),
@@ -211,7 +214,7 @@ export async function newAction(
   });
 
   if (withManager) {
-    await copyTemplate(join(WORKSPACE_DIR, "templates/manager-.env.local"), join(WORKTREES_DIR, branch, "manager/.env.local"), {
+    await copyTpl(join(WORKSPACE_DIR, "templates/manager-.env.local"), join(WORKTREES_DIR, branch, "manager/.env.local"), {
       BRANCH_NAME: branch,
       BRANCH_SLUG: branchSlug,
       MANAGER_PORT: String(ports.manager!),
@@ -243,18 +246,18 @@ volumes:
   // Setup VS Code workspace
   const vscodeDir = join(WORKTREES_DIR, branch, ".vscode");
   await shell(["mkdir", "-p", vscodeDir], { silent: true });
-  await copyTemplate(join(WORKSPACE_DIR, "templates/vscode/settings.json"), join(vscodeDir, "settings.json"), {
+  await copyTpl(join(WORKSPACE_DIR, "templates/vscode/settings.json"), join(vscodeDir, "settings.json"), {
     DB_PORT: String(ports.db),
     BRANCH_NAME: branch,
   });
-  await copyTemplate(join(WORKSPACE_DIR, "templates/vscode/tasks.json"), join(vscodeDir, "tasks.json"), {
+  await copyTpl(join(WORKSPACE_DIR, "templates/vscode/tasks.json"), join(vscodeDir, "tasks.json"), {
     DB_PORT: String(ports.db),
     BACKEND_PORT: String(ports.backend),
     FRONTEND_PORT: String(ports.frontend),
     MANAGER_PORT: ports.manager ? String(ports.manager) : "",
     BRANCH_NAME: branch,
   });
-  await copyTemplate(join(WORKSPACE_DIR, "templates/vscode/launch.json"), join(vscodeDir, "launch.json"), {
+  await copyTpl(join(WORKSPACE_DIR, "templates/vscode/launch.json"), join(vscodeDir, "launch.json"), {
     BRANCH_NAME: branch,
   });
   await shell(["cp", join(WORKSPACE_DIR, "templates/vscode/extensions.json"), join(vscodeDir, "extensions.json")], { silent: true });
@@ -297,7 +300,7 @@ volumes:
 
   // DataGrip datasource
   const dsUuid = crypto.randomUUID();
-  await copyTemplate(join(WORKSPACE_DIR, "templates/idea/dataSources.xml"), join(ideaDir, "dataSources.xml"), {
+  await copyTpl(join(WORKSPACE_DIR, "templates/idea/dataSources.xml"), join(ideaDir, "dataSources.xml"), {
     BRANCH_NAME: branch,
     DB_PORT: String(ports.db),
     DB_NAME,
@@ -306,8 +309,8 @@ volumes:
 
   // Maven project registration (equivalent to "Add as Maven Project" in IntelliJ)
   if (await pathExistsAsync(join(WORKSPACE_DIR, "templates/idea/workspace.xml"))) {
-    await copyTemplate(join(WORKSPACE_DIR, "templates/idea/workspace.xml"), join(ideaDir, "workspace.xml"), {
-      BACKEND_MODULE,
+    await copyTpl(join(WORKSPACE_DIR, "templates/idea/workspace.xml"), join(ideaDir, "workspace.xml"), {
+      BACKEND_CORE_MODULE,
     });
   }
 
@@ -316,7 +319,7 @@ volumes:
   await shell(["mkdir", "-p", runDir], { silent: true });
   const rcResult = await shell(["ls", "-1", join(WORKSPACE_DIR, "templates/runConfigurations")], { silent: true });
   for (const rcName of rcResult.stdout.split("\n").filter((f) => f.endsWith(".xml"))) {
-    await copyTemplate(
+    await copyTpl(
       join(WORKSPACE_DIR, "templates/runConfigurations", rcName),
       join(runDir, rcName),
       {
