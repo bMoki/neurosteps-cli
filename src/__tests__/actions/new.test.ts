@@ -16,6 +16,7 @@ describe("newAction", () => {
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
     markTouched: mock(() => Promise.resolve()),
+    hooks: mock(() => Promise.resolve()),
   });
 
   test("creates new branch without manager", async () => {
@@ -74,6 +75,40 @@ describe("newAction", () => {
     }
   });
 
+  test("runs new:after hooks with IntelliJ database context", async () => {
+    const mocks = createMocks();
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(
+        path.includes(".git") ||
+        !path.includes("worktrees") ||
+        path.includes("templates")
+      ),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", false, mocks);
+      expect(mocks.hooks).toHaveBeenCalledWith(
+        "new:after",
+        expect.objectContaining({
+          branch: "feat-123",
+          dbPort: 5438,
+          dbUser: "postgres",
+          dbName: expect.any(String),
+          dbSchema: "core",
+          productName: "neurosteps",
+          repos: [
+            { name: "backend", path: "backend" },
+            { name: "frontend", path: "frontend" },
+            { name: "docs", path: "docs" },
+          ],
+        }),
+      );
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
   test("creates new branch with manager", async () => {
     const mocks = createMocks();
     mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015, manager: 3021 }));
@@ -103,6 +138,36 @@ describe("newAction", () => {
       expect(mocks.allocate).toHaveBeenCalledWith(true);
       expect(mocks.worktree).toHaveBeenCalledTimes(4);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
+    } finally {
+      Bun.file = originalFile;
+    }
+  });
+
+  test("passes manager repo to new:after hooks when manager is enabled", async () => {
+    const mocks = createMocks();
+    mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015, manager: 3021 }));
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(
+        path.includes(".git") ||
+        !path.includes("worktrees") ||
+        path.includes("templates")
+      ),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await newAction("feat-123", "master", true, mocks);
+      expect(mocks.hooks).toHaveBeenCalledWith(
+        "new:after",
+        expect.objectContaining({
+          repos: [
+            { name: "backend", path: "backend" },
+            { name: "frontend", path: "frontend" },
+            { name: "docs", path: "docs" },
+            { name: "manager", path: "manager" },
+          ],
+        }),
+      );
     } finally {
       Bun.file = originalFile;
     }

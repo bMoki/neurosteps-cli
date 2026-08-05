@@ -10,6 +10,7 @@ export interface NsSettings {
   defaultIde?: string;
   databaseApp?: string;
   apps?: Record<string, string>;
+  hooks?: Record<string, string[]>;
 }
 
 export async function readSettings(): Promise<NsSettings> {

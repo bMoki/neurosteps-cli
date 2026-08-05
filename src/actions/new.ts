@@ -31,6 +31,7 @@ import { markBranchTouched } from "../lib/branch-flags";
 import { exec, execChecked } from "../lib/shell";
 import { ensureWorkspaceBootstrap } from "../lib/bootstrap";
 import { pathExistsAsync } from "../lib/filesystem";
+import { runHooks } from "../lib/hooks";
 import { join } from "path";
 
 interface NewDeps {
@@ -46,6 +47,7 @@ interface NewDeps {
   volumeCopy: typeof dockerVolumeCopy;
   shell: typeof exec;
   markTouched: typeof markBranchTouched;
+  hooks: typeof runHooks;
 }
 
 const defaultDeps: NewDeps = {
@@ -61,6 +63,7 @@ const defaultDeps: NewDeps = {
   volumeCopy: dockerVolumeCopy,
   shell: execChecked,
   markTouched: markBranchTouched,
+  hooks: runHooks,
 };
 
 export async function newAction(
@@ -82,6 +85,7 @@ export async function newAction(
     volumeCopy,
     shell,
     markTouched,
+    hooks,
   } = { ...defaultDeps, ...deps };
 
   const s = spinner(`Criando worktree da branch ${branch}...`).start();
@@ -313,6 +317,18 @@ volumes:
       BACKEND_CORE_MODULE,
     });
   }
+
+  await hooks("new:after", {
+    branch,
+    ideaDir,
+    productName: PRODUCT_NAME,
+    dataSourceUuid: dsUuid,
+    dbPort: ports.db,
+    dbUser: DB_USER,
+    dbName: DB_NAME,
+    dbSchema: "core",
+    repos: folders,
+  });
 
   // Run configurations
   const runDir = join(ideaDir, "runConfigurations");

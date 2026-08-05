@@ -19,6 +19,7 @@ describe("newAction paths", () => {
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
     markTouched: mock(() => Promise.resolve()),
+    hooks: mock(() => Promise.resolve()),
   });
 
   test("uses existing remote branch", async () => {
