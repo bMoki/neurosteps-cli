@@ -5,15 +5,20 @@ interface ConfirmDeps {
   confirm: typeof inqConfirm;
 }
 
+export interface ConfirmOptions {
+  default?: boolean;
+}
+
 export async function confirm(
   message: string,
   deps: Partial<ConfirmDeps> = {},
+  options: ConfirmOptions = {},
 ): Promise<boolean> {
   if (!deps.confirm) {
     assertInteractiveInput("pedir confirmação");
   }
   const confirmFn = deps.confirm ?? inqConfirm;
-  return confirmFn({ message, default: false });
+  return confirmFn({ message, default: options.default ?? false });
 }
 
 export function assertInteractiveInput(action: string): void {

@@ -54,13 +54,17 @@ export async function dockerVolumeCopy(
   ], { silent: true }, `copiar volume Docker ${from} para ${to}`);
 }
 
-export async function dockerPs(containerName: string): Promise<boolean> {
+export async function listRunningContainers(): Promise<string[]> {
   const result = await execChecked(
     ["docker", "ps", "--format", "{{.Names}}"],
     { silent: true },
     "listar containers Docker",
   );
-  return result.stdout.split("\n").includes(containerName);
+  return result.stdout.split("\n");
+}
+
+export async function dockerPs(containerName: string): Promise<boolean> {
+  return (await listRunningContainers()).includes(containerName);
 }
 
 export async function dockerExec(

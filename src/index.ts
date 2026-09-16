@@ -20,6 +20,7 @@ import {
 import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
 import { error, warn, hint } from "./lib/logger";
+import { isNsError } from "./core";
 
 process.on("SIGINT", () => {
   process.stderr.write("\nInterrompido.\n");
@@ -119,6 +120,18 @@ function isCommanderError(error: unknown): error is CommanderError {
 main().catch((err) => {
   if (isCommanderError(err)) {
     process.exitCode = err.exitCode;
+    return;
+  }
+
+  // Erro do núcleo: já vem com mensagem para humano. Exit code 1 em toda categoria.
+  if (isNsError(err)) {
+    error(err.message);
+    if (err.hint) hint(err.hint);
+    if (isDebugEnabled() && err.cause) {
+      console.error("");
+      console.error(err.cause instanceof Error && err.cause.stack ? err.cause.stack : err.cause);
+    }
+    process.exitCode = 1;
     return;
   }
 

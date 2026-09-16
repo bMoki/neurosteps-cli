@@ -3,12 +3,13 @@ import { join } from "path";
 import { WORKTREES_DIR } from "./config";
 import { pathExists } from "./filesystem";
 import { NS_CONFIG_DIR } from "./settings";
-import { execSync } from "./shell";
+import { exec } from "./shell";
 
 export const STALE_BRANCH_DAYS = 7;
 export const STALE_BRANCH_FLAG = "stale";
 
 const STALE_BRANCH_MS = STALE_BRANCH_DAYS * 24 * 60 * 60 * 1000;
+const BRANCH_SCAN_CONCURRENCY = 8;
 const BRANCH_ACTIVITY_FILE = join(NS_CONFIG_DIR, "branch-activity.json");
 const WORKTREE_REPOS = ["backend", "frontend", "manager", "report-server"];
 
@@ -65,8 +66,37 @@ export async function markBranchTouched(branch: string, source: string): Promise
 }
 
 export async function getBranchFlags(branch: string, now = new Date()): Promise<BranchFlagInfo> {
+  return buildBranchFlags(branch, await readBranchActivity(), now);
+}
+
+/**
+ * Mesma leitura de `getBranchFlags` para várias branches: a atividade é lida uma vez
+ * e as branches são varridas em paralelo — cada uma custa até 4 `git log`.
+ */
+export async function getBranchFlagsMany(
+  branches: string[],
+  now = new Date(),
+): Promise<Map<string, BranchFlagInfo>> {
   const activity = await readBranchActivity();
-  const lastCommitAt = getLatestBranchCommitAt(branch);
+  const infos = await mapLimited(
+    branches,
+    BRANCH_SCAN_CONCURRENCY,
+    (branch) => buildBranchFlags(branch, activity, now),
+  );
+  return new Map(branches.map((branch, index) => [branch, infos[index]!]));
+}
+
+export async function listFlaggedBranches(branches: string[], flag = STALE_BRANCH_FLAG): Promise<string[]> {
+  const infos = await getBranchFlagsMany(branches);
+  return branches.filter((branch) => infos.get(branch)?.flags.includes(flag));
+}
+
+async function buildBranchFlags(
+  branch: string,
+  activity: BranchActivity,
+  now: Date,
+): Promise<BranchFlagInfo> {
+  const lastCommitAt = await getLatestBranchCommitAt(branch);
   const lastCliUsedAt = parseDate(activity[branch]?.lastCliUsedAt);
   const stale = isBranchStale({ lastCommitAt, lastCliUsedAt }, now);
 
@@ -78,34 +108,25 @@ export async function getBranchFlags(branch: string, now = new Date()): Promise<
   };
 }
 
-export async function listFlaggedBranches(branches: string[], flag = STALE_BRANCH_FLAG): Promise<string[]> {
-  const flagged: string[] = [];
-  for (const branch of branches) {
-    const info = await getBranchFlags(branch);
-    if (info.flags.includes(flag)) flagged.push(branch);
-  }
-  return flagged;
-}
+async function getLatestBranchCommitAt(branch: string): Promise<Date | null> {
+  const repoPaths = WORKTREE_REPOS
+    .map((repoName) => join(WORKTREES_DIR, branch, repoName))
+    .filter((worktreePath) => pathExists(worktreePath));
 
-function getLatestBranchCommitAt(branch: string): Date | null {
+  const commits = await Promise.all(repoPaths.map(getLastCommitAt));
+
   let latest: Date | null = null;
-
-  for (const repoName of WORKTREE_REPOS) {
-    const worktreePath = join(WORKTREES_DIR, branch, repoName);
-    if (!pathExists(worktreePath)) continue;
-
-    const commitAt = getLastCommitAt(worktreePath);
+  for (const commitAt of commits) {
     if (commitAt && (!latest || commitAt > latest)) {
       latest = commitAt;
     }
   }
-
   return latest;
 }
 
-function getLastCommitAt(repoPath: string): Date | null {
+async function getLastCommitAt(repoPath: string): Promise<Date | null> {
   try {
-    const result = execSync(["git", "-C", repoPath, "log", "-1", "--format=%ct"], { silent: true });
+    const result = await exec(["git", "-C", repoPath, "log", "-1", "--format=%ct"], { silent: true });
     if (result.exitCode !== 0) return null;
 
     const seconds = Number(result.stdout.trim());
@@ -114,6 +135,26 @@ function getLastCommitAt(repoPath: string): Date | null {
   } catch {
     return null;
   }
+}
+
+/** Worker pool: mantém `limit` processos git no ar sem disparar um por branch de uma vez. */
+async function mapLimited<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await fn(items[index]!);
+    }
+  });
+
+  await Promise.all(workers);
+  return results;
 }
 
 function parseDate(value: string | undefined): Date | null {
