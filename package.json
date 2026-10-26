@@ -10,7 +10,7 @@
     "dev": "bun run src/index.ts",
     "build": "bun build --compile src/index.ts --outfile dist/ns",
     "test": "bun test --preload ./src/__tests__/env-setup.ts",
-    "install-global": "$HOME/.bun/bin/bun build --compile src/index.ts --outfile dist/ns && mkdir -p $HOME/.local/bin && cp dist/ns $HOME/.local/bin/ns && $HOME/.local/bin/ns completion install"
+    "install-global": "$HOME/.bun/bin/bun build --compile src/index.ts --outfile dist/ns && if command -v codesign >/dev/null; then codesign --remove-signature dist/ns && codesign -s - -f dist/ns; fi && mkdir -p $HOME/.local/bin && rm -f $HOME/.local/bin/ns && cp dist/ns $HOME/.local/bin/ns && $HOME/.local/bin/ns completion install"
   },
   "dependencies": {
     "@inquirer/prompts": "^8.4.2",
