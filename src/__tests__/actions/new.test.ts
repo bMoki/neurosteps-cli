@@ -10,7 +10,7 @@ describe("newAction", () => {
     localBranch: mock((repo: string, branch: string, base: string) => Promise.resolve()),
     localExists: mock((repo: string, branch: string) => true),
     worktree: mock((repo: string, path: string, branch: string) => Promise.resolve()),
-    allocate: mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015 })),
+    allocate: mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, management: 9001, frontend: 3015 })),
     copyTpl: mock((src: string, dst: string, variables: Record<string, string>) => Promise.resolve()),
     volumeCreate: mock((name: string) => Promise.resolve()),
     volumeCopy: mock((source: string, target: string) => Promise.resolve()),
@@ -111,7 +111,7 @@ describe("newAction", () => {
 
   test("creates new branch with manager", async () => {
     const mocks = createMocks();
-    mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015, manager: 3021 }));
+    mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, management: 9001, frontend: 3015, manager: 3021 }));
     mocks.shell = mock((cmd: string[]) => {
       if (cmd.includes("ls") && cmd.some((c) => c.includes("runConfigurations"))) {
         return Promise.resolve(createShellResult(cmd, { stdout: "Quarkus.xml\nWeb.xml\n" }));
@@ -145,7 +145,7 @@ describe("newAction", () => {
 
   test("passes manager repo to new:after hooks when manager is enabled", async () => {
     const mocks = createMocks();
-    mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, frontend: 3015, manager: 3021 }));
+    mocks.allocate = mock((withManager?: boolean) => ({ db: 5438, backend: 8084, backendDebug: 5005, management: 9001, frontend: 3015, manager: 3021 }));
     const originalFile = Bun.file;
     Bun.file = mock((path: string) => ({
       exists: () => Promise.resolve(

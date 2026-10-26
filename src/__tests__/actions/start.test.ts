@@ -27,6 +27,7 @@ describe("startAction", () => {
     expect(spawnTerm).toHaveBeenCalledTimes(3);
     expect(spawnTerm.mock.calls[0]?.[1]).toMatchObject({
       QUARKUS_HTTP_PORT: "8084",
+      QUARKUS_MANAGEMENT_PORT: "9001",
       QUARKUS_DATASOURCE_JDBC_URL: "jdbc:postgresql://localhost:5438/app_database",
       QUARKUS_DATASOURCE_USERNAME: "postgres",
       QUARKUS_DATASOURCE_PASSWORD: "docker",
@@ -34,6 +35,21 @@ describe("startAction", () => {
     expect(spawnTerm.mock.calls[0]?.[2]).toBe("mvn -pl scalemed-core quarkus:dev");
     expect(spawnTerm.mock.calls[1]?.[2]).toBe("npm start");
     expect(spawnTerm.mock.calls[2]?.[2]).toBe("npm run dev");
+  });
+
+  test("backfills management port for worktrees created before MANAGEMENT_PORT existed", async () => {
+    const spawnTerm = mock(async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {});
+    const ensureMgmtPort = mock((_branch: string, current?: number) => Promise.resolve(current ?? 9002));
+    const deps = createDeps({
+      spawnTerm,
+      ensureMgmtPort,
+      readEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({ MANAGEMENT_PORT: undefined }))) as StartActionDeps["readEnv"],
+    });
+
+    await startAction("feat-123", deps);
+
+    expect(ensureMgmtPort).toHaveBeenCalledWith("feat-123", undefined);
+    expect(spawnTerm.mock.calls[0]?.[1]).toMatchObject({ QUARKUS_MANAGEMENT_PORT: "9002" });
   });
 
   test("prints URLs and manual commands when Terminal.app cannot be opened", async () => {

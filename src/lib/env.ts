@@ -183,6 +183,7 @@ export const workspaceEnvSchema = z.object({
   DB_PORT: z.coerce.number(),
   BACKEND_PORT: z.coerce.number(),
   BACKEND_DEBUG_PORT: z.coerce.number().optional(),
+  MANAGEMENT_PORT: z.coerce.number().optional(),
   FRONTEND_PORT: z.coerce.number(),
   MANAGER_PORT: z.coerce.number().optional(),
   REPORT_SERVER_PORT: z.coerce.number().optional(),

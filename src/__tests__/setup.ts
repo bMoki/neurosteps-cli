@@ -7,6 +7,7 @@ export const TEST_BRANCH_SLUG = "feat-123";
 export const TEST_DB_PORT = 5438;
 export const TEST_BACKEND_PORT = 8084;
 export const TEST_BACKEND_DEBUG_PORT = 5005;
+export const TEST_MANAGEMENT_PORT = 9001;
 export const TEST_FRONTEND_PORT = 3015;
 export const TEST_MANAGER_PORT = 3021;
 export const TEST_DB_VOLUME = "myapp_db_feat-123";
@@ -42,6 +43,7 @@ export function createMockWorkspaceEnv(overrides: Record<string, unknown> = {}) 
     DB_PORT: TEST_DB_PORT,
     BACKEND_PORT: TEST_BACKEND_PORT,
     BACKEND_DEBUG_PORT: TEST_BACKEND_DEBUG_PORT,
+    MANAGEMENT_PORT: TEST_MANAGEMENT_PORT,
     FRONTEND_PORT: TEST_FRONTEND_PORT,
     MANAGER_PORT: TEST_MANAGER_PORT,
     DB_VOLUME: TEST_DB_VOLUME,

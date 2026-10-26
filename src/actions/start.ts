@@ -15,6 +15,7 @@ import { pathExists } from "../lib/filesystem";
 import { join } from "path";
 import { confirm } from "@inquirer/prompts";
 import { openAiApp } from "../lib/apps";
+import { ensureManagementPort } from "../lib/ports";
 import {
   BranchNotFoundError,
   setupBranchRuntime,
@@ -38,6 +39,7 @@ export interface StartActionDeps extends Partial<BranchSetupDeps> {
   spawnTerm?: typeof spawnTerminal;
   branchHasManager?: typeof hasManager;
   branchHasReportServer?: typeof hasReportServer;
+  ensureMgmtPort?: typeof ensureManagementPort;
   aiFlag?: string;
   noManager?: boolean;
   noReportServer?: boolean;
@@ -48,6 +50,7 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     spawnTerm = spawnTerminal,
     branchHasManager = hasManager,
     branchHasReportServer = hasReportServer,
+    ensureMgmtPort = ensureManagementPort,
     aiFlag,
     noManager = false,
     noReportServer = false,
@@ -69,6 +72,7 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     s.fail(error instanceof Error ? error.message : String(error));
     throw error;
   });
+  const managementPort = await ensureMgmtPort(branch, runtime.env.MANAGEMENT_PORT);
 
   s.text = "Verificando dependências...";
   const frontendDir = resolveFrontendDir(branch);
@@ -153,6 +157,7 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
   const services = buildStartServices(
     branch,
     runtime,
+    managementPort,
     !noManager && branchHasManager(branch),
     !noReportServer && branchHasReportServer(branch),
   );
@@ -203,6 +208,7 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
 function buildStartServices(
   branch: string,
   runtime: BranchRuntime,
+  managementPort: number,
   includeManager: boolean,
   includeReportServer: boolean,
 ): StartServiceCommand[] {
@@ -214,6 +220,7 @@ function buildStartServices(
       cwd: backendDir,
       env: {
         QUARKUS_HTTP_PORT: String(runtime.env.BACKEND_PORT),
+        QUARKUS_MANAGEMENT_PORT: String(managementPort),
         QUARKUS_DATASOURCE_JDBC_URL: `jdbc:postgresql://localhost:${runtime.env.DB_PORT}/${runtime.env.DB_NAME}`,
         QUARKUS_DATASOURCE_USERNAME: runtime.env.DB_USER,
         QUARKUS_DATASOURCE_PASSWORD: runtime.env.DB_PASSWORD,

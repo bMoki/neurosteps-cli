@@ -11,6 +11,7 @@ import {
   DOCS_REPO,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
+import { ensureManagementPort } from "../lib/ports";
 import { dockerVolumeExists, dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
 import { registerAlias, listAliases } from "../lib/portless";
 import { colors, heading, spinner } from "../lib/logger";
@@ -226,6 +227,7 @@ export async function doctorAction(
             {
               DB_PORT: String(env.DB_PORT),
               BACKEND_PORT: String(env.BACKEND_PORT),
+              MANAGEMENT_PORT: String(await ensureManagementPort(branch, env.MANAGEMENT_PORT)),
               BRANCH_NAME: branch,
               BRANCH_SLUG: env.BRANCH_SLUG,
               PRODUCT_NAME,
