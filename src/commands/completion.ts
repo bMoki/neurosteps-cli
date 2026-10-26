@@ -15,6 +15,7 @@ const COMMANDS = [
   "add",
   "new",
   "rm",
+  "pull",
   "open",
   "close",
   "doctor",

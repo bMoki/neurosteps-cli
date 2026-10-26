@@ -272,6 +272,7 @@ ns rm minha-branch --force
 | `ns stop <branch>` | Para DB, remove aliases e mata processos das portas. | Compartilha rotina de shutdown com `close`. |
 | `ns close <branch>` | Faz `stop` e fecha janelas do IDE. | Fecha janelas cujo nome contém a branch. |
 | `ns portless <branch>` | Registra aliases Portless da branch. | Não sobe todos os serviços. |
+| `ns pull [remote] [branch]` | Roda `git pull` em paralelo em todos os repos da branch (padrão: `origin @default`). | `@default` resolve a branch principal de cada repo (`main`/`master`). Branch é inferida do diretório atual ou via `-b`. Repos sem a branch no remoto são ignorados; falhas não interrompem os demais e resultam em exit 1. |
 
 ### Comandos de status e diagnóstico
 

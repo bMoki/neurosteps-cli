@@ -17,3 +17,9 @@ A forma canônica de endereçar um snapshot, inclusive a partir de outra branch.
 
 ### Restaurar (restore)
 Sobrescrever o banco de uma **branch alvo** com o conteúdo de um snapshot. A branch alvo (onde o banco é substituído) e a branch de origem (de quem é o snapshot) podem ser diferentes.
+
+### Repo (de workspace)
+Cada repositório git que compõe uma branch de workspace (backend, frontend e, quando presentes, manager, report-server e docs). Cada repo tem seu próprio histórico e sua própria branch principal.
+
+### Branch principal (`@default`)
+A branch de integração de um repo — a que o remoto aponta como padrão. Varia por repo (`master` em uns, `main` em outros), por isso é referida pelo apelido `@default`, que é resolvido individualmente em cada repo. Por enquanto, o apelido só é aceito pelo `pull`.

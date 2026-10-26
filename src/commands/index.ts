@@ -12,6 +12,7 @@ import { workspaceCommand } from "./workspace";
 import { configCommand } from "./config";
 import { completionCommand } from "./completion";
 import { addCommand } from "./add";
+import { pullCommand } from "./pull";
 
 export {
   statusCommand,
@@ -30,4 +31,5 @@ export {
   configCommand,
   completionCommand,
   addCommand,
+  pullCommand,
 };
