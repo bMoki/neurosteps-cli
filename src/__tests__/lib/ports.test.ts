@@ -1,5 +1,5 @@
 import { describe, test, expect, mock, spyOn } from "bun:test";
-import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts } from "../../lib/ports";
+import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts, ensureManagementPort } from "../../lib/ports";
 import * as config from "../../lib/config";
 import * as fs from "fs";
 
@@ -37,6 +37,8 @@ describe("ports", () => {
     expect(ports.db).toBeGreaterThan(0);
     expect(ports.backend).toBeGreaterThan(0);
     expect(ports.backendDebug).toBeGreaterThan(0);
+    // 9000 fica reservada para o management do master
+    expect(ports.management).toBeGreaterThan(9000);
     expect(ports.frontend).toBeGreaterThan(0);
     expect(ports.manager).toBeUndefined();
     
@@ -123,16 +125,50 @@ describe("ports", () => {
 
     const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation(() => {
       // existing branch occupies the base ports
-      return `DB_PORT="5434"\nBACKEND_PORT="8080"\nBACKEND_DEBUG_PORT="5005"\nFRONTEND_PORT="3011"\n`;
+      return `DB_PORT="5434"\nBACKEND_PORT="8080"\nBACKEND_DEBUG_PORT="5005"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3011"\n`;
     });
 
     const ports = allocatePorts();
     expect(ports.db).not.toBe(5434);
     expect(ports.backend).not.toBe(8080);
     expect(ports.backendDebug).not.toBe(5005);
+    expect(ports.management).toBe(9002);
     expect(ports.frontend).not.toBe(3011);
 
     readFileSyncSpy.mockRestore();
+    Bun.spawnSync = originalSpawnSync;
+  });
+
+  test("ensureManagementPort keeps the existing port without touching the file", async () => {
+    const writeSpy = spyOn(Bun, "write");
+
+    expect(await ensureManagementPort("feat-123", 9005)).toBe(9005);
+    expect(writeSpy).not.toHaveBeenCalled();
+
+    writeSpy.mockRestore();
+  });
+
+  test("ensureManagementPort allocates and persists a port for legacy worktrees", async () => {
+    const originalSpawnSync = Bun.spawnSync;
+    Bun.spawnSync = mock((cmd: string[]) => {
+      if (cmd[0] === "ls") return { exitCode: 0, stdout: new TextEncoder().encode("") };
+      return { exitCode: 1 };
+    }) as any;
+    const fileSpy = spyOn(Bun, "file").mockImplementation(
+      () => ({ text: () => Promise.resolve(`BACKEND_PORT="8083"\nBACKEND_DEBUG_PORT="5018"\nFRONTEND_PORT="3014"\n`) }) as any,
+    );
+    const writeSpy = spyOn(Bun, "write").mockImplementation(() => Promise.resolve(0));
+
+    const port = await ensureManagementPort("feat-123");
+
+    expect(port).toBe(9001);
+    expect(String(writeSpy.mock.calls[0]?.[0])).toEndWith("feat-123/.workspace.env");
+    expect(writeSpy.mock.calls[0]?.[1]).toBe(
+      `BACKEND_PORT="8083"\nBACKEND_DEBUG_PORT="5018"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3014"\n`,
+    );
+
+    fileSpy.mockRestore();
+    writeSpy.mockRestore();
     Bun.spawnSync = originalSpawnSync;
   });
 });

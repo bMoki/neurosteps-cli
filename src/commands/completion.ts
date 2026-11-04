@@ -15,6 +15,7 @@ const COMMANDS = [
   "add",
   "new",
   "rm",
+  "pull",
   "open",
   "close",
   "doctor",
@@ -88,6 +89,7 @@ const ADD_SUBCOMMANDS = [
   "manager",
   "docs",
   "report-server",
+  "parents",
 ];
 
 const WORKSPACE_SUBCOMMANDS = [

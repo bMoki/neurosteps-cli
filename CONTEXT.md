@@ -32,6 +32,12 @@ Deixar uma branch pronta para os serviços subirem: portas alocadas, banco no ar
 ### Iniciar (start)
 Preparar a branch **e** colocar o plano de serviços em execução. Onde os processos passam a viver é escolha de quem inicia, não da operação.
 
+### Repo (de workspace)
+Cada repositório git que compõe uma branch de workspace (backend, frontend e, quando presentes, manager, report-server, docs e parents). Cada repo tem seu próprio histórico e sua própria branch principal.
+
+### Branch principal (`@default`)
+A branch de integração de um repo — a que o remoto aponta como padrão. Varia por repo (`master` em uns, `main` em outros), por isso é referida pelo apelido `@default`, que é resolvido individualmente em cada repo. Por enquanto, o apelido só é aceito pelo `pull`.
+
 ## Termos — modelo de extensão
 
 ### Núcleo

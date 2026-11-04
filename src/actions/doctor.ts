@@ -9,8 +9,10 @@ import {
   BACKEND_CORE_MODULE,
   SEED_VOLUME,
   DOCS_REPO,
+  hasParents,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
+import { ensureManagementPort } from "../lib/ports";
 import { dockerVolumeExists, dockerVolumeCreate, dockerVolumeCopy } from "../lib/docker";
 import { registerAlias, listAliases } from "../lib/portless";
 import { colors, heading, spinner } from "../lib/logger";
@@ -226,6 +228,7 @@ export async function doctorAction(
             {
               DB_PORT: String(env.DB_PORT),
               BACKEND_PORT: String(env.BACKEND_PORT),
+              MANAGEMENT_PORT: String(await ensureManagementPort(branch, env.MANAGEMENT_PORT)),
               BRANCH_NAME: branch,
               BRANCH_SLUG: env.BRANCH_SLUG,
               PRODUCT_NAME,
@@ -325,6 +328,17 @@ export async function doctorAction(
   } else {
     checkFail(`Worktree do docs não encontrada: ${docsDir}`);
     console.log(colors.info(`    → Repositório base esperado: ${DOCS_REPO}`));
+  }
+
+  // 4c. Parents (opcional)
+  if (hasParents(branch)) {
+    section("Parents");
+    checkPass("Worktree existe");
+    if (pathExists(join(wtDir, "parents", ".git"))) {
+      checkPass("Metadados Git encontrados");
+    } else {
+      checkFail("Metadados Git não encontrados");
+    }
   }
 
   // 5. Manager

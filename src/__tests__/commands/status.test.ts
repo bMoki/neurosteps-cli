@@ -81,7 +81,7 @@ let captured: ReturnType<typeof captureOutput> | undefined;
 afterEach(() => {
   captured?.restore();
   captured = undefined;
-  process.exitCode = undefined;
+  process.exitCode = 0;
 });
 
 async function run(args: string[], deps: {
@@ -327,7 +327,7 @@ describe("--all", () => {
     expect(headings[0]).toContain("Branch: a");
     expect(headings[1]).toContain("Branch: b");
     expect(readStatus).toHaveBeenCalledTimes(1);
-    expect(process.exitCode).toBeUndefined();
+    expect(process.exitCode ?? 0).toBe(0);
   });
 
   test("entrada sem worktree é reportada e não interrompe o resto", async () => {

@@ -127,8 +127,8 @@ describe("completion bash", () => {
   test("add subcommands complete branches", () => {
     const script = renderBashCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local add_subs="manager docs report-server"');
-    expect(script).toContain('manager|docs|report-server');
+    expect(script).toContain('local add_subs="manager docs report-server parents"');
+    expect(script).toContain('manager|docs|report-server|parents');
     expect(script).not.toContain('COMPREPLY=( $(compgen -W "$branches" -- "$cur") )\n}');
   });
 
@@ -163,10 +163,10 @@ describe("completion zsh", () => {
   test("add subcommands complete branches", () => {
     const script = renderZshCompletion(["FEAT-123"], "/tmp/snapshots");
 
-    expect(script).toContain('local -a add_subs=("manager" "docs" "report-server")');
+    expect(script).toContain('local -a add_subs=("manager" "docs" "report-server" "parents")');
     expect(script).toContain('case "$words[2]" in');
     expect(script).toContain('add)');
-    expect(script).toContain('manager|docs|report-server');
+    expect(script).toContain('manager|docs|report-server|parents');
     expect(script).toContain("_describe 'branch' branches");
   });
 });

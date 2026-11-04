@@ -6,6 +6,7 @@ import {
   MANAGER_REPO,
   REPORT_SERVER_REPO,
   DOCS_REPO,
+  PARENTS_REPO,
   workspaceEnvSchema,
   type WorkspaceEnv,
 } from "./env";
@@ -36,6 +37,7 @@ export {
   MANAGER_REPO,
   REPORT_SERVER_REPO,
   DOCS_REPO,
+  PARENTS_REPO,
 } from "./env";
 
 export type { WorkspaceEnv };
@@ -77,6 +79,7 @@ export async function readWorkspaceEnv(branch: string): Promise<WorkspaceEnv | n
       DB_PORT: parse("DB_PORT"),
       BACKEND_PORT: parse("BACKEND_PORT"),
       BACKEND_DEBUG_PORT: parse("BACKEND_DEBUG_PORT") || undefined,
+      MANAGEMENT_PORT: parse("MANAGEMENT_PORT") || undefined,
       FRONTEND_PORT: parse("FRONTEND_PORT"),
       MANAGER_PORT: parse("MANAGER_PORT") || undefined,
       REPORT_SERVER_PORT: parse("REPORT_SERVER_PORT") || undefined,
@@ -138,6 +141,19 @@ export function resolveDocsDir(branch: string): string {
 export function hasDocs(branch: string): boolean {
   try {
     return pathExists(join(WORKTREES_DIR, branch, "docs"));
+  } catch {
+    return false;
+  }
+}
+
+export function resolveParentsDir(branch: string): string {
+  const wt = join(WORKTREES_DIR, branch, "parents");
+  return pathExists(wt) ? wt : PARENTS_REPO;
+}
+
+export function hasParents(branch: string): boolean {
+  try {
+    return pathExists(join(WORKTREES_DIR, branch, "parents"));
   } catch {
     return false;
   }

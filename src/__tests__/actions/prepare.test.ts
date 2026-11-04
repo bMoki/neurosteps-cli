@@ -1,7 +1,7 @@
 import { describe, test, expect, mock } from "bun:test";
 import { prepareAction } from "../../actions/prepare";
 import { BranchNotFoundError } from "../../actions/branch-setup";
-import { createMockWorkspaceEnv } from "../setup";
+import { createMockWorkspaceEnv, createShellResult } from "../setup";
 
 describe("prepareAction", () => {
   const createMocks = () => ({
@@ -12,6 +12,7 @@ describe("prepareAction", () => {
     proxyRunning: mock(() => false),
     proxyStart: mock(() => Promise.resolve()),
     markTouched: mock(() => Promise.resolve()),
+    run: mock((command: string[]) => Promise.resolve(createShellResult(command))),
   });
 
   test("prepares branch with all services", async () => {

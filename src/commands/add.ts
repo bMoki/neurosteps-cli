@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { addDocsAction, addManagerAction, addReportServerAction } from "../actions/add";
+import { addDocsAction, addManagerAction, addParentsAction, addReportServerAction } from "../actions/add";
 
 export function addCommand(): Command {
   return new Command("add")
@@ -31,6 +31,15 @@ export function addCommand(): Command {
         .option("--port <port>", "porta do report-server")
         .action(async (branch, opts) => {
           await addReportServerAction(branch, opts);
+        }),
+    )
+    .addCommand(
+      new Command("parents")
+        .description("Adiciona o repo scalemed-parents a uma workspace existente")
+        .argument("<branch>", "nome da branch/workspace")
+        .option("--base <branch>", "branch base quando a branch não existe no parents", "main")
+        .action(async (branch, opts) => {
+          await addParentsAction(branch, opts);
         }),
     );
 }

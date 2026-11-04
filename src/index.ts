@@ -16,6 +16,7 @@ import {
   configCommand,
   completionCommand,
   addCommand,
+  pullCommand,
 } from "./commands";
 import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
@@ -48,6 +49,7 @@ program
   .addCommand(addCommand())
   .addCommand(newCommand())
   .addCommand(rmCommand())
+  .addCommand(pullCommand())
   .addCommand(openCommand())
   .addCommand(closeCommand())
   .addCommand(doctorCommand())

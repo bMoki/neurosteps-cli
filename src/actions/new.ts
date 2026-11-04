@@ -182,6 +182,7 @@ export async function newAction(
     DB_PORT: String(ports.db),
     BACKEND_PORT: String(ports.backend),
     BACKEND_DEBUG_PORT: String(ports.backendDebug),
+    MANAGEMENT_PORT: String(ports.management),
     FRONTEND_PORT: String(ports.frontend),
     MANAGER_PORT: ports.manager ? String(ports.manager) : "",
     DB_VOLUME: dbVolume,
@@ -200,6 +201,7 @@ export async function newAction(
   await copyTpl(join(WORKSPACE_DIR, "templates/backend-application-dev.properties"), backendProps, {
     DB_PORT: String(ports.db),
     BACKEND_PORT: String(ports.backend),
+    MANAGEMENT_PORT: String(ports.management),
     BRANCH_NAME: branch,
     BRANCH_SLUG: branchSlug,
     PRODUCT_NAME,
@@ -342,6 +344,7 @@ volumes:
         DB_PORT: String(ports.db),
         BACKEND_PORT: String(ports.backend),
         BACKEND_DEBUG_PORT: String(ports.backendDebug),
+        MANAGEMENT_PORT: String(ports.management),
         FRONTEND_PORT: String(ports.frontend),
         MANAGER_PORT: ports.manager ? String(ports.manager) : "",
         BRANCH_NAME: branch,
@@ -383,6 +386,7 @@ volumes:
   section("Portas");
   detail("Database", `localhost:${ports.db}`);
   detail("Backend", `localhost:${ports.backend}`);
+  detail("Management", `localhost:${ports.management}`);
   detail("Frontend", `localhost:${ports.frontend}`);
   if (withManager) {
     detail("Manager", `localhost:${ports.manager}`);

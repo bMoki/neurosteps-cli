@@ -4,6 +4,9 @@ import { MASTER_DB_PORT, MASTER_BACKEND_PORT, MASTER_FRONTEND_PORT, MASTER_MANAG
 import { commandErrorMessage, execSync, type ShellResult } from "./shell";
 
 const BACKEND_DEBUG_PORT_BASE = 5005;
+// 9000 é a porta de management do master (application.properties); worktrees começam em 9001.
+const MANAGEMENT_PORT_BASE = 9001;
+const PORT_KEYS = ["DB_PORT", "BACKEND_PORT", "BACKEND_DEBUG_PORT", "MANAGEMENT_PORT", "FRONTEND_PORT", "MANAGER_PORT", "REPORT_SERVER_PORT"];
 
 export function isPortAvailable(port: number): boolean {
   let result: ShellResult;
@@ -23,7 +26,7 @@ export function getAssignedPorts(): Set<number> {
   for (const branch of listBranches()) {
     try {
       const content = readFileSync(join(WORKTREES_DIR, branch, ".workspace.env"), "utf8");
-      for (const key of ["DB_PORT", "BACKEND_PORT", "BACKEND_DEBUG_PORT", "FRONTEND_PORT", "MANAGER_PORT", "REPORT_SERVER_PORT"]) {
+      for (const key of PORT_KEYS) {
         const match = content.match(new RegExp(`^${key}="(\\d+)"`, "m"));
         if (match) reserved.add(Number(match[1]));
       }
@@ -46,6 +49,7 @@ export interface AllocatedPorts {
   db: number;
   backend: number;
   backendDebug: number;
+  management: number;
   frontend: number;
   manager?: number;
 }
@@ -59,14 +63,43 @@ export function allocatePorts(includeManager = false): AllocatedPorts {
   reserved.add(backend);
   const backendDebug = getNextPort(BACKEND_DEBUG_PORT_BASE, reserved);
   reserved.add(backendDebug);
+  const management = getNextPort(MANAGEMENT_PORT_BASE, reserved);
+  reserved.add(management);
   const frontend = getNextPort(MASTER_FRONTEND_PORT, reserved);
   reserved.add(frontend);
 
-  const result: AllocatedPorts = { db, backend, backendDebug, frontend };
+  const result: AllocatedPorts = { db, backend, backendDebug, management, frontend };
 
   if (includeManager) {
     result.manager = getNextPort(MASTER_MANAGER_PORT, reserved);
   }
 
   return result;
+}
+
+export function allocateManagementPort(): number {
+  return getNextPort(MANAGEMENT_PORT_BASE, getAssignedPorts());
+}
+
+/**
+ * Garante que a worktree tenha MANAGEMENT_PORT no .workspace.env.
+ * Worktrees criadas antes desse campo recebem uma porta nova, persistida no arquivo.
+ */
+export async function ensureManagementPort(branch: string, current?: number): Promise<number> {
+  if (current) return current;
+
+  const port = allocateManagementPort();
+  const envPath = join(WORKTREES_DIR, branch, ".workspace.env");
+  const content = await Bun.file(envPath).text();
+  const line = `MANAGEMENT_PORT="${port}"`;
+  let updated: string;
+  if (/^MANAGEMENT_PORT=.*/m.test(content)) {
+    updated = content.replace(/^MANAGEMENT_PORT=.*/m, line);
+  } else if (/^BACKEND_DEBUG_PORT=.*/m.test(content)) {
+    updated = content.replace(/^(BACKEND_DEBUG_PORT=.*)$/m, `$1\n${line}`);
+  } else {
+    updated = `${content.replace(/\n?$/, "\n")}${line}\n`;
+  }
+  await Bun.write(envPath, updated);
+  return port;
 }

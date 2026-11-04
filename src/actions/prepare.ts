@@ -9,12 +9,17 @@ import { pathExists } from "../lib/filesystem";
 import { exec } from "../lib/shell";
 import { join } from "path";
 
+export interface PrepareActionDeps extends Partial<BranchSetupDeps> {
+  run?: typeof exec;
+}
+
 export async function prepareAction(
   branch: string,
   opts: { noManager?: boolean; noReportServer?: boolean } = {},
-  deps: Partial<BranchSetupDeps> = {},
+  deps: PrepareActionDeps = {},
 ): Promise<void> {
   const { noManager = false, noReportServer = false } = opts;
+  const run = deps.run ?? exec;
   const s = spinner(`Preparando ${branch}...`).start();
 
   const runtime = await setupBranchRuntime(branch, {
@@ -37,8 +42,8 @@ export async function prepareAction(
   const frontendNodeModules = join(frontendDir, "node_modules/.bin/vite");
   if (!pathExists(frontendNodeModules)) {
     s.text = "Instalando dependências do frontend...";
-    const result = await exec(["npm", "ci"], { cwd: frontendDir, silent: true }).catch(() =>
-      exec(["npm", "install"], { cwd: frontendDir, silent: true }),
+    const result = await run(["npm", "ci"], { cwd: frontendDir, silent: true }).catch(() =>
+      run(["npm", "install"], { cwd: frontendDir, silent: true }),
     );
     if (result.exitCode === 0) {
       s.text = "Dependências do frontend instaladas";
@@ -52,8 +57,8 @@ export async function prepareAction(
     const managerNodeModules = join(managerDir, "node_modules/.bin/vite");
     if (!pathExists(managerNodeModules)) {
       s.text = "Instalando dependências do manager...";
-      const result = await exec(["npm", "ci"], { cwd: managerDir, silent: true }).catch(() =>
-        exec(["npm", "install"], { cwd: managerDir, silent: true }),
+      const result = await run(["npm", "ci"], { cwd: managerDir, silent: true }).catch(() =>
+        run(["npm", "install"], { cwd: managerDir, silent: true }),
       );
       if (result.exitCode === 0) {
         s.text = "Dependências do manager instaladas";
@@ -67,7 +72,7 @@ export async function prepareAction(
     const reportServerDir = resolveReportServerDir(branch);
     if (!pathExists(join(reportServerDir, "node_modules"))) {
       s.text = "Instalando dependências do report-server...";
-      const result = await exec(["bun", "install"], { cwd: reportServerDir, silent: true });
+      const result = await run(["bun", "install"], { cwd: reportServerDir, silent: true });
       if (result.exitCode === 0) {
         s.text = "Dependências do report-server instaladas";
       } else {
