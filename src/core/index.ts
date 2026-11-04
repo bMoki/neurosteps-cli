@@ -18,3 +18,13 @@ export { applyWhenUnavailable, createSilentContext } from "./context";
 
 export type { BaseRepo, BranchStatus, StatusInput, StatusResult } from "./operations/status";
 export { runStatus } from "./operations/status";
+
+export type {
+  MissingDep,
+  PrepareDeps,
+  PrepareInput,
+  PrepareResult,
+  ServiceId,
+  ServicePlan,
+} from "./operations/prepare";
+export { runPrepare } from "./operations/prepare";

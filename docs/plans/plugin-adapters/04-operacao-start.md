@@ -47,8 +47,8 @@ export interface PrepareResult {
   ports: { db: number; backend: number; frontend: number; manager?: number; reportServer?: number };
   urls:  { backend: string; frontend: string; manager?: string; reportServer?: string };
   services: ServicePlan[];
-  depsInstalled: string[];              // ids que tiveram deps instaladas nesta execução
-  depsMissing: string[];                // ids que continuam sem deps (usuário disse não)
+  depsInstalled: ServiceId[];           // ids que tiveram deps instaladas nesta execução
+  depsMissing: MissingDep[];            // { id, cwd, command, reason: "recusado" | "falhou" }
 }
 
 export async function runPrepare(input: PrepareInput, ctx: NsContext): Promise<PrepareResult>

@@ -1,5 +1,5 @@
 import { describe, test, expect, mock } from "bun:test";
-import { startAction, type StartActionDeps } from "../../actions/start";
+import { startAction, type StartActionDeps } from "../../commands/dev";
 import { createMockWorkspaceEnv } from "../setup";
 
 describe("startAction", () => {
@@ -14,7 +14,9 @@ describe("startAction", () => {
     spawnTerm: mock(
       async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {},
     ) as StartActionDeps["spawnTerm"],
-    branchHasManager: mock((_branch: string) => true) as StartActionDeps["branchHasManager"],
+    hasManager: mock((_branch: string) => true) as StartActionDeps["hasManager"],
+    hasReportServer: mock((_branch: string) => false) as StartActionDeps["hasReportServer"],
+    depsPresent: mock((_marker: string) => true),
     ...overrides,
   });
 
@@ -39,16 +41,16 @@ describe("startAction", () => {
 
   test("backfills management port for worktrees created before MANAGEMENT_PORT existed", async () => {
     const spawnTerm = mock(async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {});
-    const ensureMgmtPort = mock((_branch: string, current?: number) => Promise.resolve(current ?? 9002));
+    const ensureManagementPort = mock((_branch: string, current?: number) => Promise.resolve(current ?? 9002));
     const deps = createDeps({
       spawnTerm,
-      ensureMgmtPort,
+      ensureManagementPort,
       readEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({ MANAGEMENT_PORT: undefined }))) as StartActionDeps["readEnv"],
     });
 
     await startAction("feat-123", deps);
 
-    expect(ensureMgmtPort).toHaveBeenCalledWith("feat-123", undefined);
+    expect(ensureManagementPort).toHaveBeenCalledWith("feat-123", undefined);
     expect(spawnTerm.mock.calls[0]?.[1]).toMatchObject({ QUARKUS_MANAGEMENT_PORT: "9002" });
   });
 
@@ -75,5 +77,25 @@ describe("startAction", () => {
     expect(text).toContain("mvn -pl scalemed-core quarkus:dev");
     expect(text).toContain("npm start");
     expect(text).toContain("npm run dev");
+  });
+
+  test("avisa como instalar à mão as dependências que ficaram faltando", async () => {
+    const deps = createDeps({
+      depsPresent: mock((_marker: string) => false),
+      run: mock((command: string[]) => Promise.resolve({ exitCode: 1, stdout: "", stderr: "", command })),
+    });
+    const originalError = console.error;
+    const output: string[] = [];
+    console.error = mock((message?: unknown) => output.push(String(message ?? ""))) as any;
+
+    try {
+      await startAction("feat-123", deps);
+    } finally {
+      console.error = originalError;
+    }
+
+    const text = output.join("\n");
+    expect(text).toContain("Falha ao instalar dependências do frontend");
+    expect(text).toContain("Rode manualmente: npm install em");
   });
 });

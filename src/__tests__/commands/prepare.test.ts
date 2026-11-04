@@ -1,5 +1,5 @@
 import { describe, test, expect, mock } from "bun:test";
-import { prepareAction } from "../../actions/prepare";
+import { prepareAction } from "../../commands/prepare";
 import { BranchNotFoundError } from "../../actions/branch-setup";
 import { createMockWorkspaceEnv, createShellResult } from "../setup";
 

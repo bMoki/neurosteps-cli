@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { type StatusResult, conflito } from "../../core";
+import { type PrepareResult, type StatusResult, conflito } from "../../core";
 import { type RpcOperations, createRpcOperations, withInput } from "../../rpc/operations";
 import type { RpcOutgoing } from "../../rpc/protocol";
 import { createRpcServer } from "../../rpc/server";
@@ -21,6 +21,14 @@ function startServer(operations: RpcOperations) {
 }
 
 const STATUS: StatusResult = { baseRepos: [], branches: [] };
+const PREPARED: PrepareResult = {
+  branch: "feat",
+  ports: { db: 5438, backend: 8084, frontend: 3015 },
+  urls: { backend: "https://feat.api", frontend: "https://feat.web" },
+  services: [],
+  depsInstalled: [],
+  depsMissing: [],
+};
 
 describe("ns rpc: protocolo", () => {
   test("anuncia a versão do protocolo e as operações disponíveis", () => {
@@ -28,7 +36,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -61,6 +69,50 @@ describe("ns rpc: protocolo", () => {
     expect(calls).toEqual([{}]);
   });
 
+  test("prepare repassa o input, as perguntas ao cliente e devolve o plano", async () => {
+    const calls: unknown[] = [];
+    const { send, settle, out } = startServer(createRpcOperations({
+      runPrepare: async (input, ctx) => {
+        calls.push(input);
+        ctx.emit({ step: "database:start", label: "Iniciando PostgreSQL..." });
+        await ctx.ask({
+          id: "prepare.install-deps.frontend",
+          message: "Instalar?",
+          default: true,
+          whenUnavailable: "default",
+        });
+        return PREPARED;
+      },
+    }));
+
+    send({ type: "op", id: "r1", op: "prepare", input: { branch: "feat", withManager: false } });
+    await settle();
+    const ask = out.find((m) => m.type === "ask");
+    send({ type: "answer", id: "r1", ask: ask?.type === "ask" ? ask.ask : "", value: false });
+    await settle();
+
+    expect(calls).toEqual([{ branch: "feat", withManager: false, installMissingDeps: "ask" }]);
+    expect(out.map((m) => m.type)).toEqual(["event", "ask", "result"]);
+    expect(out.at(-1)).toEqual({ type: "result", id: "r1", result: PREPARED });
+  });
+
+  test("prepare sem branch ou com política desconhecida é recusado", async () => {
+    let called = false;
+    const { send, settle, messagesOf } = startServer(createRpcOperations({
+      runPrepare: async () => { called = true; return PREPARED; },
+    }));
+
+    send({ type: "op", id: "r1", op: "prepare", input: {} });
+    send({ type: "op", id: "r2", op: "prepare", input: { branch: "feat", installMissingDeps: "talvez" } });
+    await settle();
+
+    expect(called).toBe(false);
+    for (const id of ["r1", "r2"]) {
+      const [message] = messagesOf(id);
+      expect(message?.type === "error" && message.error.category).toBe("protocolo");
+    }
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -88,8 +140,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare." } },
     ]);
   });
 

@@ -9,6 +9,7 @@ import {
 import { dockerComposeUp, waitForPostgres } from "../lib/docker";
 import { markBranchTouched } from "../lib/branch-flags";
 import { registerAlias, isProxyRunning, startProxy } from "../lib/portless";
+import { NsError } from "../core/errors";
 
 export type BranchSetupStep =
   | "database:start"
@@ -52,9 +53,11 @@ export interface BranchRuntime {
   };
 }
 
-export class BranchNotFoundError extends Error {
+export class BranchNotFoundError extends NsError {
   constructor(readonly branch: string) {
-    super(`Branch '${branch}' não encontrada`);
+    super("nao-encontrado", `Branch '${branch}' não encontrada`, {
+      hint: "Rode 'ns status' para ver as branches disponíveis.",
+    });
     this.name = "BranchNotFoundError";
   }
 }
