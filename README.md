@@ -283,6 +283,7 @@ ns rm minha-branch --force
 | `ns status` | Mostra status compacto de todas as branches. | Lê `~/Developer/worktrees` ou `NS_BASE_DIR/worktrees`. |
 | `ns status <branch>` | Mostra detalhes de uma branch. | Inclui portas, DB e aliases. |
 | `ns status --all` | Mostra detalhes de todas as branches. | Mais verboso. |
+| `ns rpc` | Serve as operações do núcleo em NDJSON pelo stdin/stdout. | Usado pelo Thalamus e outros adapters. Protocolo na [ADR 0003](docs/adr/0003-ns-rpc-adapter-stdio.md). |
 | `ns doctor <branch>` | Diagnostica configuração da branch. | Verifica worktree, env, Docker, Portless e portas. |
 | `ns doctor <branch> --fix` | Tenta corrigir problemas conhecidos. | Pode recriar templates, volume e aliases. |
 

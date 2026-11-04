@@ -8,6 +8,8 @@ Aceito (implementação pendente).
 
 Plano de execução: [docs/plans/plugin-adapters/](../plans/plugin-adapters/00-visao-geral.md)
 
+Complementada pela [ADR 0003](0003-ns-rpc-adapter-stdio.md): o adapter de protocolo JSON por stdio (`ns rpc`) vive no próprio binário `ns`, em vez de num programa à parte.
+
 ## Contexto
 
 O `ns` nasceu como um programa de terminal e é hoje uma coisa só: `src/commands/` define comandos do Commander e `src/actions/` contém a lógica. A separação é de arquivos, não de responsabilidade — 16 das 18 actions importam `lib/logger` e **imprimem** em vez de retornar. `startAction` calcula a URL do backend e essa informação só existe como texto colorido no stderr.

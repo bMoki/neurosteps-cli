@@ -23,6 +23,8 @@ src/
 │   ├── portless.ts       # Portless alias management
 │   ├── templates.ts      # Template rendering/copying
 │   └── logger.ts         # chalk + ora
+├── core/                 # Núcleo: operações run(input, ctx) sem I/O de terminal
+├── rpc/                  # Adapter `ns rpc` (NDJSON no stdio)
 ├── commands/             # Commander command definitions
 ├── actions/              # Command business logic
 └── __tests__/            # Test suites
@@ -79,6 +81,8 @@ bun test
 4. Register in `src/index.ts`
 5. Add tests in `src/__tests__/actions/<name>.test.ts`
 6. Update completion in `src/commands/completion.ts`
+
+Operações migradas para o núcleo (ADR 0002) não têm action: a lógica fica em `src/core/operations/<nome>.ts`, com testes em `src/__tests__/core/`, e o comando só a apresenta. Para servi-la no `ns rpc`, registre-a em `src/rpc/operations.ts`.
 
 ## graphify
 

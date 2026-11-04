@@ -17,6 +17,7 @@ import {
   completionCommand,
   addCommand,
   pullCommand,
+  rpcCommand,
 } from "./commands";
 import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
@@ -57,6 +58,7 @@ program
   .addCommand(workspaceCommand())
   .addCommand(configCommand())
   .addCommand(completionCommand())
+  .addCommand(rpcCommand())
   .addCommand(
     new Command("help")
       .description("Exibe ajuda para um comando")
@@ -91,7 +93,8 @@ async function main(argv = process.argv): Promise<void> {
     wantsVersion ||
     firstArg === "init" ||
     firstArg === "config" ||
-    firstArg === "completion";
+    firstArg === "completion" ||
+    firstArg === "rpc";
 
   if (!isBootstrapSafe && !isConfigured()) {
     warn("CLI não configurado.");

@@ -13,6 +13,7 @@ import { configCommand } from "./config";
 import { completionCommand } from "./completion";
 import { addCommand } from "./add";
 import { pullCommand } from "./pull";
+import { rpcCommand } from "./rpc";
 
 export {
   statusCommand,
@@ -32,4 +33,5 @@ export {
   completionCommand,
   addCommand,
   pullCommand,
+  rpcCommand,
 };

@@ -54,6 +54,19 @@ export function assertSuccess(result: ShellResult, action: string): void {
   }
 }
 
+// Saída de processo filho não silencioso. O `ns rpc` desvia para o stderr (fd 2),
+// porque o stdout dele é só do protocolo.
+let childStdout: "inherit" | 2 = "inherit";
+
+/** Desvia a saída dos processos filhos para o stderr até a função devolvida ser chamada. */
+export function routeChildStdoutToStderr(): () => void {
+  const previous = childStdout;
+  childStdout = 2;
+  return () => {
+    childStdout = previous;
+  };
+}
+
 export async function exec(
   command: string[],
   opts: ShellOptions = {},
@@ -62,12 +75,12 @@ export async function exec(
   const proc = Bun.spawn([cmd!, ...args], {
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
-    stdout: opts.silent ? "pipe" : "inherit",
+    stdout: opts.silent ? "pipe" : childStdout,
     stderr: opts.silent ? "pipe" : "inherit",
   });
 
   const exitCode = await proc.exited;
-  const stdout = opts.silent ? await new Response(proc.stdout).text() : "";
+  const stdout = opts.silent ? await new Response(proc.stdout as ReadableStream<Uint8Array>).text() : "";
   const stderr = opts.silent ? await new Response(proc.stderr).text() : "";
 
   return { exitCode, stdout, stderr, command };
@@ -97,7 +110,7 @@ export function execSync(
   const proc = Bun.spawnSync([cmd!, ...args], {
     cwd: opts.cwd,
     env: { ...process.env, ...opts.env },
-    stdout: opts.silent ? "pipe" : "inherit",
+    stdout: opts.silent ? "pipe" : childStdout,
     stderr: opts.silent ? "pipe" : "inherit",
   });
 

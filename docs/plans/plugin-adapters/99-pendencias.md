@@ -16,6 +16,17 @@ O que ficou de fora da fatia, com o motivo. Nada aqui bloqueia [05](05-plugin-br
 **Limpeza dos arquivos de log.**
 Com serviços escrevendo em `~/.local/state/ns/<branch>/<servico>.log`, os arquivos acumulam e ninguém os apaga. `ns rm <branch>` deveria remover o diretório de estado da branch, no mesmo raciocínio da ADR 0001 (soft preserva, `--purge` destrói). Rotação por tamanho é assunto separado e provavelmente desnecessário, já que o arquivo é truncado a cada start.
 
+## `ns rpc` (ADR 0003)
+
+**Teste de ponta a ponta do `status` pelo binário real.**
+Os testes cobrem o protocolo em processo, com `runStatus` injetado, e o processo real só no caminho de erro. Rodar `status` pelo binário leria o workspace real da máquina, porque a pasta de worktrees vem da config de quem roda. Entra depois que a suíte tiver uma pasta temporária própria (ticket 20 do Thalamus, "Testes do cli isolados do workspace real").
+
+**Cancelar uma requisição em andamento.**
+O protocolo não tem mensagem de cancelamento: uma operação iniciada só termina com `result` ou `error`. Nenhuma operação servida hoje precisa (o `status` é rápido). Passa a importar quando `new` ou `start` forem servidos e o cliente quiser desistir no meio; exige o núcleo aceitar um sinal de cancelamento.
+
+**`listBranches` devolve arquivos soltos como branches.**
+`ls -1` da pasta de worktrees inclui arquivos como `AGENTS.md` e `CLAUDE.md`. O `status` os ignora por não terem `.workspace.env`, mas eles aparecem nos eventos de progresso ("Lendo status de AGENTS.md...") e inflam o `total`. Listar só diretórios resolve.
+
 ## Oportunidades que a fatia destrava
 
 **`ns logs <branch> <servico>`.**
