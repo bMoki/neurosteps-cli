@@ -11,6 +11,7 @@ const envSchema = z.object({
   NS_MANAGER_REPO: z.string().optional(),
   NS_REPORT_SERVER_REPO: z.string().optional(),
   NS_DOCS_REPO: z.string().optional(),
+  NS_PARENTS_REPO: z.string().optional(),
 
   // ─── Identidade do produto (OBRIGATÓRIAS) ───
   NS_PRODUCT_NAME: z.string().min(1, "NS_PRODUCT_NAME é obrigatória"),
@@ -22,6 +23,7 @@ const envSchema = z.object({
   // CLI keeps validating for users that never use it.
   NS_REPORT_SERVER_REPO_NAME: z.string().default("report-server"),
   NS_DOCS_REPO_NAME: z.string().default("docs"),
+  NS_PARENTS_REPO_NAME: z.string().default("scalemed-parents"),
 
   // ─── Volume de seed (OBRIGATÓRIA) ───
   NS_SEED_VOLUME: z.string().min(1, "NS_SEED_VOLUME é obrigatória"),
@@ -122,6 +124,7 @@ export let FRONTEND_REPO: string;
 export let MANAGER_REPO: string;
 export let REPORT_SERVER_REPO: string;
 export let DOCS_REPO: string;
+export let PARENTS_REPO: string;
 
 // ─── Computed constants ───
 export let MASTER_DB_PORT: number;
@@ -155,6 +158,7 @@ function applyEnv(nextEnv: EnvVars): void {
   MANAGER_REPO = env.NS_MANAGER_REPO || join(BASE_DIR, env.NS_MANAGER_REPO_NAME);
   REPORT_SERVER_REPO = env.NS_REPORT_SERVER_REPO || join(BASE_DIR, env.NS_REPORT_SERVER_REPO_NAME);
   DOCS_REPO = env.NS_DOCS_REPO || join(BASE_DIR, env.NS_DOCS_REPO_NAME);
+  PARENTS_REPO = env.NS_PARENTS_REPO || join(BASE_DIR, env.NS_PARENTS_REPO_NAME);
 
   MASTER_DB_PORT = env.NS_MASTER_DB_PORT;
   MASTER_BACKEND_PORT = env.NS_MASTER_BACKEND_PORT;

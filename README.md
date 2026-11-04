@@ -256,6 +256,8 @@ ns rm minha-branch --force
 | `ns add report-server <branch>` | Adiciona report-server a uma workspace existente. | Repo opcional, sob demanda. Usa `master` como base por padrão. |
 | `ns add report-server <branch> --base <base>` | Adiciona report-server a partir de `origin/<base>`. | A base precisa existir no origin do repositório report-server. |
 | `ns add report-server <branch> --port <port>` | Adiciona report-server com porta específica. | Atualiza `.workspace.env`. |
+| `ns add parents <branch>` | Adiciona o app scalemed-parents a uma workspace existente. | Repo opcional, sob demanda. Usa `main` como base por padrão. |
+| `ns add parents <branch> --base <base>` | Adiciona parents a partir de `origin/<base>`. | A base precisa existir no origin do repositório scalemed-parents. |
 | `ns rm <branch>` | Remove worktrees e branches locais. | Pede confirmação. |
 | `ns rm <branch> --purge` | Remove também o volume Docker e todos os snapshots da branch. | Destrutivo e irreversível. |
 | `ns rm <branch> --force` | Remove sem confirmação e força remoção de worktrees sujas. | Descarta alterações locais não commitadas nas worktrees. |
@@ -346,6 +348,8 @@ Opcionais:
 | `NS_DOCS_REPO` | `$NS_BASE_DIR/$NS_DOCS_REPO_NAME` | Caminho absoluto do docs. |
 | `NS_REPORT_SERVER_REPO_NAME` | `report-server` | Nome padrão da pasta do report-server (repo opcional). |
 | `NS_REPORT_SERVER_REPO` | `$NS_BASE_DIR/$NS_REPORT_SERVER_REPO_NAME` | Caminho absoluto do report-server. |
+| `NS_PARENTS_REPO_NAME` | `scalemed-parents` | Nome padrão da pasta do app parents (repo opcional). |
+| `NS_PARENTS_REPO` | `$NS_BASE_DIR/$NS_PARENTS_REPO_NAME` | Caminho absoluto do app parents. |
 | `NS_DB_USER` | `postgres` | Usuário PostgreSQL. |
 | `NS_DB_PASSWORD` | `docker` | Senha PostgreSQL. |
 | `NS_DB_NAME` | `app_database` | Nome do banco local. |
@@ -383,6 +387,7 @@ Resolução de caminhos:
 | Manager | `NS_MANAGER_REPO`, ou `NS_BASE_DIR/NS_MANAGER_REPO_NAME`. |
 | Docs | `NS_DOCS_REPO`, ou `NS_BASE_DIR/NS_DOCS_REPO_NAME`. |
 | Report-server | `NS_REPORT_SERVER_REPO`, ou `NS_BASE_DIR/NS_REPORT_SERVER_REPO_NAME`. |
+| Parents | `NS_PARENTS_REPO`, ou `NS_BASE_DIR/NS_PARENTS_REPO_NAME`. |
 | Worktrees | `NS_BASE_DIR/worktrees`. |
 | Templates e snapshots | `NS_BASE_DIR/<NS_PRODUCT_NAME>-workspace`. |
 

@@ -8,7 +8,7 @@ import { exec, type ShellResult } from "../lib/shell";
 
 export const DEFAULT_BRANCH_ALIAS = "@default";
 const DEFAULT_BRANCH_FALLBACKS = ["main", "master"];
-const PULL_REPOS = ["backend", "frontend", "manager", "report-server", "docs"];
+const PULL_REPOS = ["backend", "frontend", "manager", "report-server", "docs", "parents"];
 
 export type PullStatus = "updated" | "up-to-date" | "skipped" | "failed";
 

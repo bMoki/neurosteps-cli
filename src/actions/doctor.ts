@@ -9,6 +9,7 @@ import {
   BACKEND_CORE_MODULE,
   SEED_VOLUME,
   DOCS_REPO,
+  hasParents,
 } from "../lib/config";
 import { copyTemplate } from "../lib/templates";
 import { ensureManagementPort } from "../lib/ports";
@@ -327,6 +328,17 @@ export async function doctorAction(
   } else {
     checkFail(`Worktree do docs não encontrada: ${docsDir}`);
     console.log(colors.info(`    → Repositório base esperado: ${DOCS_REPO}`));
+  }
+
+  // 4c. Parents (opcional)
+  if (hasParents(branch)) {
+    section("Parents");
+    checkPass("Worktree existe");
+    if (pathExists(join(wtDir, "parents", ".git"))) {
+      checkPass("Metadados Git encontrados");
+    } else {
+      checkFail("Metadados Git não encontrados");
+    }
   }
 
   // 5. Manager
