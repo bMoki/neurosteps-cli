@@ -1,4 +1,4 @@
-import { WORKTREES_DIR, readWorkspaceEnv, hasManager, hasReportServer, hasDocs, hasParents, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO, REPORT_SERVER_REPO, DOCS_REPO, PARENTS_REPO, listBranches } from "../lib/config";
+import { WORKTREES_DIR, resolveBranchStateDir, readWorkspaceEnv, hasManager, hasReportServer, hasDocs, hasParents, PRODUCT_NAME, BACKEND_REPO, FRONTEND_REPO, MANAGER_REPO, REPORT_SERVER_REPO, DOCS_REPO, PARENTS_REPO, listBranches } from "../lib/config";
 import { dockerComposeDown, dockerVolumeRm } from "../lib/docker";
 import { removeWorktree, deleteBranch } from "../lib/git";
 import { removeAlias } from "../lib/portless";
@@ -8,6 +8,7 @@ import { colors, spinner, warn } from "../lib/logger";
 import { join } from "path";
 import { rm } from "fs/promises";
 import { removeBranchSnapshots } from "./snapshot";
+import { stopBranchSessions } from "../lib/services";
 
 interface RmDeps {
   readEnv: typeof readWorkspaceEnv;
@@ -23,6 +24,7 @@ interface RmDeps {
   confirm: typeof defaultConfirm;
   rmDir: (path: string) => Promise<void>;
   rmSnapshots: typeof removeBranchSnapshots;
+  stopSessions: (slug: string) => Promise<void>;
 }
 
 interface RmFlaggedDeps {
@@ -45,6 +47,7 @@ const defaultDeps: RmDeps = {
   confirm: defaultConfirm,
   rmDir: (path) => rm(path, { recursive: true, force: true }),
   rmSnapshots: removeBranchSnapshots,
+  stopSessions: (slug) => stopBranchSessions(slug),
 };
 
 const defaultFlaggedDeps: RmFlaggedDeps = {
@@ -79,7 +82,7 @@ export async function rmAction(
   { purge = false, force = false, dryRun = false }: { purge?: boolean; force?: boolean; dryRun?: boolean } = {},
   deps: Partial<RmDeps> = {},
 ): Promise<void> {
-  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, hasRs, hasDocsRepo, hasParentsRepo, confirm, rmDir, rmSnapshots } = {
+  const { readEnv, composeDown, volumeRm, rmAlias, rmWorktree, delBranch, hasMgr, hasRs, hasDocsRepo, hasParentsRepo, confirm, rmDir, rmSnapshots, stopSessions } = {
     ...defaultDeps,
     ...deps,
   };
@@ -96,6 +99,7 @@ export async function rmAction(
     warn(`[dry-run] Seria removido:`);
     const { hint } = await import("../lib/logger");
     hint(`  worktree: ${wtDir}`);
+    hint(`  logs dos serviços: ${resolveBranchStateDir(branch)}`);
     hint(`  branch local em: ${BACKEND_REPO}, ${FRONTEND_REPO}`);
     if (hasDocsRepo(branch)) hint(`  branch local em: ${DOCS_REPO}`);
     if (hasParentsRepo(branch)) hint(`  branch local em: ${PARENTS_REPO}`);
@@ -130,9 +134,10 @@ export async function rmAction(
     }
   };
 
-  await step("Parando serviços...", "Serviços parados", () =>
-    composeDown(composeFile, env.COMPOSE_PROJECT),
-  );
+  await step("Parando serviços...", "Serviços parados", async () => {
+    await stopSessions(aliasSlug);
+    await composeDown(composeFile, env.COMPOSE_PROJECT);
+  });
 
   await step("Removendo aliases Portless...", "Aliases Portless removidos", async () => {
     await rmAlias(`${aliasSlug}.web.${PRODUCT_NAME}`);
@@ -167,6 +172,10 @@ export async function rmAction(
     if (hasMgr(branch)) await delBranch(MANAGER_REPO, branch);
     if (hasRs(branch)) await delBranch(REPORT_SERVER_REPO, branch);
   });
+
+  await step("Removendo logs...", "Logs removidos", () =>
+    rmDir(resolveBranchStateDir(branch)),
+  );
 
   await step("Removendo diretório...", `${colors.bold(branch)} removida`, () =>
     rmDir(wtDir),

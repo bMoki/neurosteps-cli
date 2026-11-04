@@ -1,0 +1,74 @@
+import { SERVICE_IDS, resolveServiceSession } from "./config";
+import { exec, formatCommand, formatShellCommand, quoteShellArg } from "./shell";
+
+/** O que o helper precisa de um Serviço do plano para subir a sessão. */
+export interface ServiceSession {
+  session: string;
+  cwd: string;
+  env: Record<string, string>;
+  command: string;
+  logFile: string;
+}
+
+export type ServiceStart = "started" | "running";
+
+// `=nome:` casa a sessão exata (sem o casamento por prefixo do tmux) e aponta
+// para a janela dela, que é onde `remain-on-exit` e `pipe-pane` valem.
+const target = (session: string) => `=${session}:`;
+
+export async function hasTmux(run: typeof exec = exec): Promise<boolean> {
+  try {
+    return (await run(["tmux", "-V"], { silent: true })).exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Sobe o Serviço numa sessão tmux destacada, com a saída gravada em `logFile`.
+ * Se a sessão já existe com o processo vivo, não mexe: o Serviço já está rodando.
+ * Se o processo morreu (o painel ficou aberto pelo `remain-on-exit`), sobe de novo.
+ */
+export async function startService(service: ServiceSession, run: typeof exec = exec): Promise<ServiceStart> {
+  const status = await run(["tmux", "display-message", "-p", "-t", target(service.session), "#{pane_dead}"], { silent: true });
+  if (status.exitCode === 0 && status.stdout.trim() === "0") return "running";
+  if (status.exitCode === 0) await stopService(service.session, run);
+
+  await Bun.write(service.logFile, "");
+
+  // Os três comandos vão numa chamada só: o tmux roda a fila inteira antes de olhar
+  // o processo, então um Serviço que morre na partida ainda fica com o painel e o log.
+  const shell = process.env.SHELL || "/bin/sh";
+  const result = await run([
+    "tmux", "new-session", "-d", "-s", service.session, "-c", service.cwd,
+    // Login e interativo, como a janela do Terminal.app: o PATH do nvm/sdkman vem do .zshrc.
+    shell, "-l", "-i", "-c", formatShellCommand(service.cwd, service.env, service.command),
+    ";", "set-option", "-w", "-t", target(service.session), "remain-on-exit", "on",
+    ";", "pipe-pane", "-o", "-t", target(service.session), `cat >> ${quoteShellArg(service.logFile)}`,
+  ], { silent: true });
+  if (result.exitCode !== 0) {
+    throw new Error(`Falha ao criar a sessão tmux ${service.session}: ${(result.stderr || result.stdout).trim()}`);
+  }
+  return "started";
+}
+
+/** Derruba a sessão do Serviço. Sessão que não existe, ou tmux ausente, não é erro. */
+export async function stopService(session: string, run: typeof exec = exec): Promise<void> {
+  try {
+    await run(["tmux", "kill-session", "-t", `=${session}`], { silent: true });
+  } catch {
+    // sem tmux não há sessão para derrubar
+  }
+}
+
+/** Derruba as sessões de todos os Serviços da branch, existam ou não. */
+export async function stopBranchSessions(slug: string, run: typeof exec = exec): Promise<void> {
+  for (const id of SERVICE_IDS) {
+    await stopService(resolveServiceSession(slug, id), run);
+  }
+}
+
+/** Comando que abre uma vista da sessão: fechar a janela desanexa, não para o Serviço. */
+export function attachCommand(session: string): string {
+  return formatCommand(["tmux", "attach-session", "-t", session]);
+}

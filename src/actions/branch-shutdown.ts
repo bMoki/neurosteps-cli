@@ -5,6 +5,7 @@ import {
   PRODUCT_NAME,
   type WorkspaceEnv,
 } from "../lib/config";
+import { stopBranchSessions } from "../lib/services";
 import { dockerComposeDown } from "../lib/docker";
 import { removeAlias } from "../lib/portless";
 import { assertSuccess, commandErrorMessage, exec } from "../lib/shell";
@@ -76,7 +77,7 @@ export async function shutdownBranchRuntime(
   }
 
   options.onStep?.("processes:stop");
-  await stopBranchProcesses(env, run);
+  await stopBranchProcesses(env, aliasSlug, run);
 
   return {
     env,
@@ -95,7 +96,11 @@ function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchShutd
   };
 }
 
-async function stopBranchProcesses(env: WorkspaceEnv, run: typeof exec): Promise<void> {
+async function stopBranchProcesses(env: WorkspaceEnv, aliasSlug: string, run: typeof exec): Promise<void> {
+  // As sessões caem primeiro, senão matar o processo deixa a sessão com o painel morto.
+  // O kill por porta fica para Serviço que subiu por fora do tmux.
+  await stopBranchSessions(aliasSlug, run);
+
   const ports = [env.BACKEND_PORT, env.FRONTEND_PORT, env.MANAGER_PORT].filter(
     (port): port is number => Boolean(port),
   );

@@ -1,8 +1,8 @@
 // Test setup: runs before env.ts is imported. The suite gets its own config dir,
-// base dir and HOME under a temp folder, so it never reads or writes the real
+// base dir, state dir and HOME under a temp folder, so it never reads or writes the real
 // ~/.config/ns or ~/Developer of whoever runs it. HOME only reaches child
 // processes: Bun's os.homedir() keeps the real home, so code under test must take
-// its paths from NS_CONFIG_DIR / NS_BASE_DIR or from injected deps.
+// its paths from NS_CONFIG_DIR / NS_BASE_DIR / NS_STATE_DIR or from injected deps.
 import { afterAll } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -21,6 +21,7 @@ for (const key of Object.keys(process.env)) {
 process.env.HOME = home;
 process.env.NS_CONFIG_DIR = join(home, ".config", "ns");
 process.env.NS_BASE_DIR = baseDir;
+process.env.NS_STATE_DIR = join(home, ".local", "state", "ns");
 process.env.NS_PRODUCT_NAME = "neurosteps";
 process.env.NS_BACKEND_MODULE = "scalemed";
 process.env.NS_BACKEND_CORE_MODULE = "scalemed-core";

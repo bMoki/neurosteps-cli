@@ -9,6 +9,9 @@ import {
   resolveFrontendDir,
   resolveManagerDir,
   resolveReportServerDir,
+  resolveServiceLogFile,
+  resolveServiceSession,
+  type SERVICE_IDS,
 } from "../../lib/config";
 import { pathExists } from "../../lib/filesystem";
 import { ensureManagementPort as defaultEnsureManagementPort } from "../../lib/ports";
@@ -22,7 +25,7 @@ import {
 import type { NsContext } from "../context";
 import { ferramentaExterna, isNsError } from "../errors";
 
-export type ServiceId = "backend" | "frontend" | "manager" | "report-server";
+export type ServiceId = (typeof SERVICE_IDS)[number];
 
 export interface PrepareInput {
   branch: string;
@@ -39,6 +42,8 @@ export interface ServicePlan {
   env: Record<string, string>;
   command: string;                      // "mvn -pl <core> quarkus:dev"
   port: number;                         // identidade do Serviço
+  session: string;                      // sessão tmux onde o Serviço roda
+  logFile: string;                      // saída gravada da execução atual
 }
 
 /** Dependências que continuam faltando ao fim da operação. */
@@ -211,7 +216,7 @@ function buildServicePlan(
   includeManager: boolean,
   includeReportServer: boolean,
 ): ServicePlan[] {
-  const services: ServicePlan[] = [
+  const services: Omit<ServicePlan, "session" | "logFile">[] = [
     {
       id: "backend",
       label: "Backend",
@@ -282,5 +287,9 @@ function buildServicePlan(
     });
   }
 
-  return services;
+  return services.map((service) => ({
+    ...service,
+    session: resolveServiceSession(runtime.aliasSlug, service.id),
+    logFile: resolveServiceLogFile(branch, service.id),
+  }));
 }

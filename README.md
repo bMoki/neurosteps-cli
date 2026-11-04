@@ -110,6 +110,8 @@ Inicie os serviços em terminais:
 ns start minha-branch
 ```
 
+Cada serviço roda numa sessão tmux própria, e a janela do Terminal é só uma vista dela: fechar a janela **não** para o serviço. Ctrl-C continua parando o processo. A saída de cada serviço fica em `~/.local/state/ns/<branch>/<serviço>.log`, zerada a cada início. Sem tmux, o `ns start` avisa e roda os serviços dentro das janelas, como antes.
+
 Pare serviços e aliases:
 
 ```bash
@@ -217,6 +219,7 @@ ns rm minha-branch --force
 | Git | Branches e worktrees. |
 | Docker | PostgreSQL por branch, volumes, seed e snapshots. |
 | Portless CLI | Proxy local e aliases por branch. |
+| tmux | Mantém os serviços do `ns start` vivos quando a janela fecha (`brew install tmux`). Opcional: sem ele, os serviços rodam dentro das janelas. |
 | Repos locais | Backend, frontend e manager são origem das worktrees. |
 
 ### Opções globais
@@ -270,8 +273,8 @@ ns rm minha-branch --force
 | `ns open <branch>` | Prepara e abre a workspace no IDE configurado. | Não sobrescreve configs IntelliJ existentes. |
 | `ns open <branch> --no-prepare` | Abre a workspace sem subir DB/aliases. | Útil quando já está tudo rodando. |
 | `ns open <branch> --app <name>` | Abre em um app específico. | Exemplo: `intellij`, `vscode`, `webstorm`. |
-| `ns start <branch>` | Sobe DB, aliases e terminais dos serviços. | Backend, frontend e manager quando existir. |
-| `ns stop <branch>` | Para DB, remove aliases e mata processos das portas. | Compartilha rotina de shutdown com `close`. |
+| `ns start <branch>` | Sobe DB, aliases e uma sessão tmux por serviço, com uma janela do Terminal em cada. | Backend, frontend e manager quando existir. |
+| `ns stop <branch>` | Para DB, remove aliases, derruba as sessões tmux e mata processos das portas. | Compartilha rotina de shutdown com `close`. |
 | `ns close <branch>` | Faz `stop` e fecha janelas do IDE. | Fecha janelas cujo nome contém a branch. |
 | `ns portless <branch>` | Registra aliases Portless da branch. | Não sobe todos os serviços. |
 | `ns pull [remote] [branch]` | Roda `git pull` em paralelo em todos os repos da branch (padrão: `origin @default`). | `@default` resolve a branch principal de cada repo (`main`/`master`). Branch é inferida do diretório atual ou via `-b`. Repos sem a branch no remoto são ignorados; falhas não interrompem os demais e resultam em exit 1. |

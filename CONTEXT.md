@@ -24,13 +24,13 @@ Um processo que precisa estar no ar para uma branch funcionar (backend, frontend
 Nenhum adapter é dono de um serviço: qualquer um pode encontrá-lo, acompanhá-lo, interagir com ele e pará-lo, inclusive um adapter que nem existia quando o serviço subiu. **Sair de um adapter nunca encerra um serviço** — vale igualmente para fechar a aba do browser e para fechar a janela do terminal. Parar um serviço é sempre um ato explícito.
 
 ### Plano de serviços
-A lista de serviços que uma branch precisa ter no ar (backend, frontend, manager, report-server), cada um descrito por rótulo, diretório, variáveis de ambiente e comando. É um **dado**: descreve o que rodar, sem dizer onde os processos vão morar.
+A lista de serviços que uma branch precisa ter no ar (backend, frontend, manager, report-server), cada um descrito por rótulo, diretório, variáveis de ambiente e comando, mais o nome da sessão tmux e o arquivo de log onde o serviço roda e grava a saída. É um **dado**: não executa nada, mas fixa esses dois endereços para que qualquer adapter encontre o mesmo serviço.
 
 ### Preparar (prepare)
 Deixar uma branch pronta para os serviços subirem: portas alocadas, banco no ar, aliases registrados, dependências instaladas. Produz o plano de serviços. Não põe nenhum serviço no ar.
 
 ### Iniciar (start)
-Preparar a branch **e** colocar o plano de serviços em execução. Onde os processos passam a viver é escolha de quem inicia, não da operação.
+Preparar a branch **e** colocar o plano de serviços em execução, cada serviço na sua sessão tmux. Quem inicia escolhe só como mostrar o serviço (janela do terminal, aba, painel); sem tmux, o terminal cai no modo antigo, com o serviço dentro da janela.
 
 ### Repo (de workspace)
 Cada repositório git que compõe uma branch de workspace (backend, frontend e, quando presentes, manager, report-server, docs e parents). Cada repo tem seu próprio histórico e sua própria branch principal.

@@ -86,7 +86,7 @@ export function resolveServiceLogFile(branch: string, id: string): string
 export function resolveServiceSession(slug: string, id: string): string
 ```
 
-O diretório é criado por `runPrepare`. O log é truncado a cada start — é da execução atual, não histórico acumulado.
+O diretório é criado por `startService` (em `src/lib/services.ts`), que é quem grava o log; `runPrepare` só devolve o caminho. O log é truncado a cada start — é da execução atual, não histórico acumulado.
 
 ⚠️ O `pipe-pane` captura a saída do painel **com códigos ANSI**. Para o terminal tanto faz; o adapter browser precisa interpretar ou remover na renderização.
 

@@ -56,7 +56,7 @@ describe("stopAction", () => {
 
     const commands = exec.mock.calls.map(([command]) => command);
     expect(commands).not.toContainEqual(["kill", "-9", "101"]);
-    expect(exec).toHaveBeenCalledTimes(3);
+    expect(commands.filter((command) => command[0] === "lsof")).toHaveLength(3);
   });
 
   test("throws on lsof failure output and does not kill processes", async () => {
@@ -75,6 +75,34 @@ describe("stopAction", () => {
 
     const commands = exec.mock.calls.map(([command]) => command);
     expect(commands).not.toContainEqual(["kill", "-9", "101"]);
-    expect(exec).toHaveBeenCalledTimes(1);
+    expect(commands.filter((command) => command[0] === "lsof")).toHaveLength(1);
+  });
+
+  test("derruba as sessões tmux dos serviços antes de matar por porta", async () => {
+    const mocks = createMocks();
+
+    await stopAction("feat-123", {}, mocks);
+
+    const commands = mocks.exec.mock.calls.map(([command]) => command);
+    const sessions = commands.filter((command) => command[0] === "tmux");
+    expect(sessions).toEqual([
+      ["tmux", "kill-session", "-t", "=ns-feat-123-backend"],
+      ["tmux", "kill-session", "-t", "=ns-feat-123-frontend"],
+      ["tmux", "kill-session", "-t", "=ns-feat-123-manager"],
+      ["tmux", "kill-session", "-t", "=ns-feat-123-report-server"],
+    ]);
+    expect(commands.findIndex((command) => command[0] === "lsof"))
+      .toBeGreaterThan(commands.findLastIndex((command) => command[0] === "tmux"));
+  });
+
+  test("segue parando por porta quando o tmux não está instalado", async () => {
+    const exec = mock((command: string[]) => {
+      if (command[0] === "tmux") return Promise.reject(new Error("ENOENT: tmux"));
+      return Promise.resolve(createShellResult(command));
+    });
+
+    await stopAction("feat-123", {}, createMocks(exec));
+
+    expect(exec).toHaveBeenCalledWith(["lsof", "-ti", `:${TEST_BACKEND_PORT}`], { silent: true });
   });
 });

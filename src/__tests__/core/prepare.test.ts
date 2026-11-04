@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from "bun:test";
 import { NsError, createSilentContext, runPrepare } from "../../core";
 import type { NsContext, NsProgressEvent, NsQuestion, PrepareDeps, PrepareInput } from "../../core";
 import { createMockWorkspaceEnv, createShellResult } from "../setup";
+import { join } from "path";
+import { STATE_DIR } from "../../lib/config";
 
 type WorkspaceEnv = Awaited<ReturnType<PrepareDeps["readEnv"]>>;
 
@@ -57,6 +59,17 @@ describe("runPrepare", () => {
     });
     expect(frontend?.env).toMatchObject({ REACT_APP_API_URL: "https://feat-123.api.neurosteps.localhost:1355/api" });
     expect(result.services.every((service) => service.cwd.length > 0)).toBe(true);
+  });
+
+  test("cada Serviço do plano traz a sessão tmux e o arquivo de log", async () => {
+    const result = await runPrepare(input(), createSilentContext(), createDeps());
+
+    expect(result.services.map((service) => [service.session, service.logFile])).toEqual([
+      ["ns-feat-123-backend", join(STATE_DIR, "feat-123", "backend.log")],
+      ["ns-feat-123-frontend", join(STATE_DIR, "feat-123", "frontend.log")],
+      ["ns-feat-123-manager", join(STATE_DIR, "feat-123", "manager.log")],
+      ["ns-feat-123-report-server", join(STATE_DIR, "feat-123", "report-server.log")],
+    ]);
   });
 
   test("sem os Repos opcionais, o plano tem só backend e frontend", async () => {

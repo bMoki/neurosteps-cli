@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { resolveBackendDir } from "../lib/config";
-import { formatShellCommand, spawnTerminal } from "../lib/shell";
+import { exec, formatShellCommand, spawnTerminal } from "../lib/shell";
+import { attachCommand, hasTmux, startService } from "../lib/services";
 import { detail, emptyLine, hint, spinner, warn } from "../lib/logger";
 import { openAiApp } from "../lib/apps";
 import type { ServicePlan } from "../core";
@@ -28,6 +29,7 @@ interface TerminalOpenResult {
 
 export interface StartActionDeps extends PrepareActionDeps {
   spawnTerm?: typeof spawnTerminal;
+  runTmux?: typeof exec;
   aiFlag?: string;
   noManager?: boolean;
   noReportServer?: boolean;
@@ -36,6 +38,7 @@ export interface StartActionDeps extends PrepareActionDeps {
 export async function startAction(branch: string, deps: StartActionDeps = {}): Promise<void> {
   const {
     spawnTerm = spawnTerminal,
+    runTmux = exec,
     aiFlag,
     noManager = false,
     noReportServer = false,
@@ -50,15 +53,46 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     installMissingDeps: "ask",
   }, prepareDeps);
 
-  s.text = "Abrindo terminais...";
   const services = result.services;
-  const terminalResult = await openServiceTerminals(services, spawnTerm);
+  const tmux = await hasTmux(runTmux);
+  const alreadyRunning: ServicePlan[] = [];
+  if (tmux) {
+    s.text = "Subindo sessões tmux...";
+    const up: ServicePlan[] = [];
+    try {
+      for (const service of services) {
+        if (await startService(service, runTmux) === "running") alreadyRunning.push(service);
+        up.push(service);
+      }
+    } catch (error) {
+      s.fail(`Falha ao subir os serviços de ${branch}`);
+      if (up.length > 0) {
+        hint(`Já estão rodando: ${up.map((service) => service.label).join(", ")}. Para parar: ns stop ${branch}`);
+      }
+      throw error;
+    }
+  } else {
+    s.stop();
+    warn("tmux não encontrado: os serviços vão rodar dentro das janelas e param quando a janela fechar.");
+    hint("Instale com: brew install tmux");
+    s.start();
+  }
+
+  s.text = "Abrindo terminais...";
+  const openWindow = tmux
+    ? (service: ServicePlan) => spawnTerm(service.cwd, {}, attachCommand(service.session))
+    : (service: ServicePlan) => spawnTerm(service.cwd, service.env, service.command);
+  const terminalResult = await openServiceTerminals(services, openWindow);
 
   if (terminalResult.error) {
     s.stop();
     warn(`Terminal.app não abriu automaticamente para ${branch}`);
   } else {
     s.succeed(`Serviços iniciados para ${branch}`);
+  }
+
+  for (const service of alreadyRunning) {
+    detail(service.label, "já estava rodando");
   }
 
   emptyLine();
@@ -68,10 +102,18 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     emptyLine();
     detail("Terminais abertos", terminalResult.opened);
     hint(`Motivo: ${summarizeTerminalError(terminalResult.error)}`);
-    hint("DB e aliases Portless foram preparados. Para subir os serviços, rode manualmente:");
-    emptyLine();
-    for (const service of services) {
-      detail(service.label, formatShellCommand(service.cwd, service.env, service.command));
+    if (tmux) {
+      hint("Os serviços estão rodando em sessões tmux. Para ver cada um:");
+      emptyLine();
+      for (const service of services) {
+        detail(service.label, attachCommand(service.session));
+      }
+    } else {
+      hint("DB e aliases Portless foram preparados. Para subir os serviços, rode manualmente:");
+      emptyLine();
+      for (const service of services) {
+        detail(service.label, formatShellCommand(service.cwd, service.env, service.command));
+      }
     }
   }
 
@@ -86,18 +128,19 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
   }
 
   emptyLine();
+  if (tmux) hint(`Fechar a janela não para o serviço. Para parar: ns stop ${branch}`);
   hint(`Próximo passo: ns status ${branch}  # ver status dos serviços`);
 }
 
 async function openServiceTerminals(
   services: ServicePlan[],
-  spawnTerm: typeof spawnTerminal,
+  openWindow: (service: ServicePlan) => Promise<void>,
 ): Promise<TerminalOpenResult> {
   let opened = 0;
 
   for (const service of services) {
     try {
-      await spawnTerm(service.cwd, service.env, service.command);
+      await openWindow(service);
       opened += 1;
     } catch (error) {
       return { opened, error };

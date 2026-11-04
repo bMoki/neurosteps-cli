@@ -1,6 +1,8 @@
 import { describe, test, expect, mock } from "bun:test";
 import { rmAction, rmFlaggedAction } from "../../actions/rm";
 import { createMockWorkspaceEnv } from "../setup";
+import { STATE_DIR, WORKTREES_DIR } from "../../lib/config";
+import { join } from "path";
 
 class ProcessExit extends Error {}
 
@@ -17,6 +19,7 @@ describe("rmAction", () => {
     confirm: mock(() => Promise.resolve(true)),
     rmDir: mock(() => Promise.resolve()),
     rmSnapshots: mock(() => Promise.resolve()),
+    stopSessions: mock((_slug: string) => Promise.resolve()),
   });
 
   test("removes branch with all services", async () => {
@@ -34,7 +37,17 @@ describe("rmAction", () => {
       { force: true },
     ]);
     expect(mocks.delBranch).toHaveBeenCalledTimes(4);
-    expect(mocks.rmDir).toHaveBeenCalledTimes(1);
+    expect(mocks.rmDir.mock.calls as unknown[][]).toEqual([
+      [join(STATE_DIR, "feat-123")],
+      [join(WORKTREES_DIR, "feat-123")],
+    ]);
+  });
+
+  test("derruba as sessões tmux da branch antes de remover", async () => {
+    const mocks = createMocks();
+    await rmAction("feat-123", { force: true }, mocks);
+
+    expect(mocks.stopSessions).toHaveBeenCalledWith("feat-123");
   });
 
   test("removes volume when purge and force are true", async () => {
