@@ -90,7 +90,7 @@ describe("ports", () => {
       return { exitCode: 1 };
     }) as any;
 
-    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation((path: any) => {
+    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation(((path: any) => {
       if (String(path).includes("branch-a")) {
         return `DB_PORT="5437"\nBACKEND_PORT="8082"\nFRONTEND_PORT="3013"\n`;
       }
@@ -98,7 +98,7 @@ describe("ports", () => {
         return `DB_PORT="5438"\nBACKEND_PORT="8083"\nFRONTEND_PORT="3014"\nMANAGER_PORT="3020"\n`;
       }
       throw new Error("not found");
-    });
+    }) as any);
 
     const reserved = getAssignedPorts();
     expect(reserved.has(5437)).toBe(true);
@@ -123,10 +123,10 @@ describe("ports", () => {
       return { exitCode: 1 };
     }) as any;
 
-    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation(() => {
+    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation((() => {
       // existing branch occupies the base ports
       return `DB_PORT="5434"\nBACKEND_PORT="8080"\nBACKEND_DEBUG_PORT="5005"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3011"\n`;
-    });
+    }) as any);
 
     const ports = allocatePorts();
     expect(ports.db).not.toBe(5434);
@@ -163,7 +163,7 @@ describe("ports", () => {
 
     expect(port).toBe(9001);
     expect(String(writeSpy.mock.calls[0]?.[0])).toEndWith("feat-123/.workspace.env");
-    expect(writeSpy.mock.calls[0]?.[1]).toBe(
+    expect(String(writeSpy.mock.calls[0]?.[1])).toBe(
       `BACKEND_PORT="8083"\nBACKEND_DEBUG_PORT="5018"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3014"\n`,
     );
 

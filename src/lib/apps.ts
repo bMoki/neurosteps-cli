@@ -1,4 +1,4 @@
-import { execSync } from "./shell";
+import { execSync, openApp, spawnTerminal } from "./shell";
 import { getSetting, readSettings, writeSettings } from "./settings";
 import { select, input } from "@inquirer/prompts";
 import { assertInteractiveInput } from "./prompt";
@@ -190,8 +190,6 @@ export async function ensureDatabaseAppConfigured(): Promise<string> {
 }
 
 // ─── AI Assistants ───
-
-import { openApp, spawnTerminal, execSync } from "./shell";
 
 export function isAiAppKey(key: string): boolean {
   return true; // any key is potentially a CLI command
