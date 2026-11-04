@@ -1,11 +1,18 @@
 import { join } from "path";
 import {
+  BACKEND_REPO,
+  DOCS_REPO,
+  FRONTEND_REPO,
+  MANAGER_REPO,
+  PARENTS_REPO,
   PRODUCT_NAME,
+  REPORT_SERVER_REPO,
   WORKTREES_DIR,
   listBranches as defaultListBranches,
   readWorkspaceEnv as defaultReadWorkspaceEnv,
   type WorkspaceEnv,
 } from "../../lib/config";
+import { pathExists } from "../../lib/filesystem";
 import { listRunningContainers as defaultListRunningContainers } from "../../lib/docker";
 import { listAliases as defaultListAliases } from "../../lib/portless";
 import {
@@ -45,7 +52,14 @@ export interface BranchStatus {
   lastCliUsedAt: string | null;
 }
 
+/** Checkout principal de um Repo, de onde as branches de workspace saem. */
+export interface BaseRepo {
+  repo: string;
+  path: string;
+}
+
 export interface StatusResult {
+  baseRepos: BaseRepo[];
   branches: BranchStatus[];
 }
 
@@ -55,6 +69,7 @@ export interface StatusDeps {
   listRunningContainers: typeof defaultListRunningContainers;
   listAliases: typeof defaultListAliases;
   getBranchFlagsMany: typeof defaultGetBranchFlagsMany;
+  listBaseRepos: () => BaseRepo[];
 }
 
 /**
@@ -74,6 +89,7 @@ export async function runStatus(
   const listRunningContainers = deps.listRunningContainers ?? defaultListRunningContainers;
   const listAliases = deps.listAliases ?? defaultListAliases;
   const getBranchFlagsMany = deps.getBranchFlagsMany ?? defaultGetBranchFlagsMany;
+  const listBaseRepos = deps.listBaseRepos ?? defaultListBaseRepos;
 
   const names = input.branch ? [input.branch] : listBranches();
   const [aliases, runningContainers] = await Promise.all([
@@ -149,7 +165,19 @@ export async function runStatus(
     };
   });
 
-  return { branches };
+  return { baseRepos: listBaseRepos(), branches };
+}
+
+/** Repos base presentes no disco, na ordem em que uma branch de workspace os tem. */
+function defaultListBaseRepos(): BaseRepo[] {
+  return [
+    { repo: "backend", path: BACKEND_REPO },
+    { repo: "frontend", path: FRONTEND_REPO },
+    { repo: "manager", path: MANAGER_REPO },
+    { repo: "report-server", path: REPORT_SERVER_REPO },
+    { repo: "docs", path: DOCS_REPO },
+    { repo: "parents", path: PARENTS_REPO },
+  ].filter(({ path }) => pathExists(path));
 }
 
 const EMPTY_FLAGS: BranchFlagInfo = {

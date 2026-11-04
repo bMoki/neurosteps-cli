@@ -16,5 +16,5 @@ export {
 export type { NsContext, NsProgressEvent, NsQuestion } from "./context";
 export { applyWhenUnavailable, createSilentContext } from "./context";
 
-export type { BranchStatus, StatusInput, StatusResult } from "./operations/status";
+export type { BaseRepo, BranchStatus, StatusInput, StatusResult } from "./operations/status";
 export { runStatus } from "./operations/status";

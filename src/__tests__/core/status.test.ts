@@ -23,6 +23,7 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
     listAliases: mock(() => Promise.resolve([])),
     getBranchFlagsMany: mock((branches: string[]) =>
       Promise.resolve(new Map(branches.map((branch) => [branch, NO_FLAGS])))),
+    listBaseRepos: mock(() => []),
     ...overrides,
   };
 }
@@ -149,6 +150,16 @@ describe("runStatus", () => {
     }));
 
     expect(result.branches).toEqual([]);
+  });
+
+  test("devolve os repos base junto com as branches", async () => {
+    const baseRepos = [{ repo: "backend", path: "/code/backend" }];
+    const result = await runStatus({}, createSilentContext(), createDeps({
+      listBranches: mock(() => []),
+      listBaseRepos: mock(() => baseRepos),
+    }));
+
+    expect(result.baseRepos).toEqual(baseRepos);
   });
 
   test("emite um evento por branch lida", async () => {

@@ -20,7 +20,7 @@ function startServer(operations: RpcOperations) {
   return { out, server, send, settle, messagesOf };
 }
 
-const STATUS: StatusResult = { branches: [] };
+const STATUS: StatusResult = { baseRepos: [], branches: [] };
 
 describe("ns rpc: protocolo", () => {
   test("anuncia a versão do protocolo e as operações disponíveis", () => {
