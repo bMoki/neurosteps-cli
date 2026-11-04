@@ -2,6 +2,7 @@ import { z } from "zod";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, readFileSync } from "fs";
+import { NS_ENV_FILE } from "./settings";
 
 const envSchema = z.object({
   // ─── Paths do sistema (opcionais com defaults) ───
@@ -59,9 +60,8 @@ export function isConfigured(): boolean {
 
 function readEnvFileSync(): Record<string, string> {
   try {
-    const filePath = join(homedir(), ".config", "ns", "env.json");
-    if (existsSync(filePath)) {
-      const content = readFileSync(filePath, "utf8");
+    if (existsSync(NS_ENV_FILE)) {
+      const content = readFileSync(NS_ENV_FILE, "utf8");
       if (content) {
         const parsed = JSON.parse(content);
         const result: Record<string, string> = {};

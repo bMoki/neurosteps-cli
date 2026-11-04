@@ -43,6 +43,7 @@ All configuration is via env vars validated by Zod in `src/lib/env.ts`:
 | `NS_PARENTS_REPO_NAME` | No | Parents app repo folder name (default: `scalemed-parents`) |
 | `NS_SEED_VOLUME` | Yes | Full Docker volume name for DB seeding |
 | `NS_BASE_DIR` | No | Base directory (default: `~/Developer`) |
+| `NS_CONFIG_DIR` | No | Folder of `env.json` and `settings.json` (default: `~/.config/ns`). Read in `settings.ts`, not in the Zod schema, because the schema is loaded from that folder. The test suite points it at a temp folder |
 | `NS_BACKEND_REPO` | No | Override backend repo path |
 | `NS_FRONTEND_REPO` | No | Override frontend repo path |
 | `NS_MANAGER_REPO` | No | Override manager repo path |
