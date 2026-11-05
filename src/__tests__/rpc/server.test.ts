@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -276,6 +276,27 @@ describe("ns rpc: protocolo", () => {
     expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat", repo: "parents", path: "/w/feat/parents" } });
   });
 
+  test("pull atualiza a branch com a principal e devolve o resultado por Repo", async () => {
+    const calls: unknown[] = [];
+    const repos = [{ repo: "manager", path: "/w/feat/manager", branch: "master", status: "conflict", conflicts: ["a.ts"] }];
+    const { send, settle, out, messagesOf } = startServer(createRpcOperations({
+      runPull: async (input, ctx) => {
+        calls.push(input);
+        ctx.emit({ step: "pull:repos", label: "Atualizando 1 repos..." });
+        return { branch: input.branch, repos } as never;
+      },
+    }));
+
+    send({ type: "op", id: "r1", op: "pull", input: { branch: "feat" } });
+    send({ type: "op", id: "r2", op: "pull", input: { branch: "feat", remote: "upstream" } });
+    await settle();
+
+    expect(calls).toEqual([{ branch: "feat" }]);
+    expect(out).toContainEqual({ type: "event", id: "r1", event: { step: "pull:repos", label: "Atualizando 1 repos..." } });
+    expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat", repos } });
+    expect(messagesOf("r2")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -303,8 +324,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull." } },
     ]);
   });
 

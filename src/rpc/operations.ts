@@ -10,6 +10,7 @@ import {
   runAddRepo as defaultRunAddRepo,
   runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
+  runPull as defaultRunPull,
   runStatus as defaultRunStatus,
   runStop as defaultRunStop,
   servicesToStart,
@@ -48,6 +49,7 @@ export interface RpcOperationDeps {
   runStop: typeof defaultRunStop;
   runNew: typeof defaultRunNew;
   runAddRepo: typeof defaultRunAddRepo;
+  runPull: typeof defaultRunPull;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -59,6 +61,7 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runStop = deps.runStop ?? defaultRunStop;
   const runNew = deps.runNew ?? defaultRunNew;
   const runAddRepo = deps.runAddRepo ?? defaultRunAddRepo;
+  const runPull = deps.runPull ?? defaultRunPull;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
   const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
@@ -96,6 +99,10 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     addRepo: withInput(
       z.strictObject({ branch: z.string().min(1), repo: z.enum(OPTIONAL_REPOS), base: z.string().min(1).optional() }),
       (input, ctx) => runAddRepo(input, ctx),
+    ),
+    pull: withInput(
+      z.strictObject({ branch: z.string().min(1) }),
+      (input, ctx) => runPull(input, ctx),
     ),
   };
 }

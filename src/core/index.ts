@@ -46,3 +46,6 @@ export { ADDABLE_REPOS, OPTIONAL_REPOS, repoLabel, runAddRepo } from "./operatio
 
 export type { MissingRepo, NewDeps, NewInput, NewResult } from "./operations/new";
 export { runNew } from "./operations/new";
+
+export type { PullDeps, PullInput, PullRepoResult, PullResult, PullStatus } from "./operations/pull";
+export { DEFAULT_BRANCH_ALIAS, runPull } from "./operations/pull";

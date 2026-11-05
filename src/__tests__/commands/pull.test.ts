@@ -1,6 +1,6 @@
 import { describe, test, expect, mock, afterEach } from "bun:test";
 import { join } from "path";
-import { pullAction, inferWorktreeFromCwd } from "../../actions/pull";
+import { pullAction, inferWorktreeFromCwd } from "../../commands/pull";
 import { WORKTREES_DIR } from "../../lib/config";
 import { createShellResult, TEST_BRANCH } from "../setup";
 import type { ShellResult } from "../../lib/shell";
@@ -102,6 +102,28 @@ describe("pullAction", () => {
     await pullAction("origin", "NS-1232", {}, deps);
 
     expect(pullCalls(deps)).toHaveLength(2);
+    expect(process.exitCode).toBe(1);
+  });
+
+  test("reports a conflict apart from other failures and sets exit code 1", async () => {
+    const deps = createDeps((repo, args) => {
+      if (repo !== "backend") return undefined;
+      if (args[0] === "pull") return { exitCode: 1, stdout: "CONFLICT (content): Merge conflict in src/A.java" };
+      if (args[0] === "diff") return { stdout: "src/A.java\n" };
+      return undefined;
+    });
+    const lines: string[] = [];
+    const spy = mock((...parts: unknown[]) => { lines.push(parts.join(" ")); });
+    const original = console.error;
+    console.error = spy;
+    try {
+      await pullAction("origin", "NS-1232", {}, deps);
+    } finally {
+      console.error = original;
+    }
+
+    expect(lines.some((line) => line.includes("backend") && line.includes("conflito"))).toBe(true);
+    expect(lines.some((line) => line.includes("CONFLICT (content): Merge conflict in src/A.java"))).toBe(true);
     expect(process.exitCode).toBe(1);
   });
 
