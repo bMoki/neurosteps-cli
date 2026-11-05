@@ -52,3 +52,6 @@ export { DEFAULT_BRANCH_ALIAS, runPull } from "./operations/pull";
 
 export type { RmDeps, RmInput, RmPreview, RmResult, UncommittedRepo } from "./operations/rm";
 export { runRm, runRmPreview, uncommittedError } from "./operations/rm";
+
+export type { DbOpenDeps, DbOpenInput, DbOpenResult } from "./operations/db-open";
+export { runDbOpen } from "./operations/db-open";

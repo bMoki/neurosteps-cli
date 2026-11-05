@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm", "dbOpen"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -319,6 +319,24 @@ describe("ns rpc: protocolo", () => {
     expect(messagesOf("r4")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
   });
 
+  test("dbOpen abre o app configurado no ns, sem escolher app pelo adapter", async () => {
+    const calls: unknown[] = [];
+    const { send, settle, out, messagesOf } = startServer(createRpcOperations({
+      runDbOpen: async (input) => {
+        calls.push(input);
+        return { branch: input.branch, app: "DataGrip" };
+      },
+    }));
+
+    send({ type: "op", id: "r1", op: "dbOpen", input: { branch: "feat" } });
+    send({ type: "op", id: "r2", op: "dbOpen", input: { branch: "feat", app: "dbeaver" } });
+    await settle();
+
+    expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat", app: "DataGrip" } });
+    expect(calls).toEqual([{ branch: "feat" }]);
+    expect(messagesOf("r2")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -346,8 +364,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen." } },
     ]);
   });
 

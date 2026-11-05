@@ -8,7 +8,9 @@ import {
   listSnapshotsAction,
   rmSnapshotAction,
 } from "../actions/snapshot";
-import { openDbAction } from "../actions/open-db";
+import { createSilentContext, runDbOpen } from "../core";
+import { ensureDatabaseAppConfigured } from "../lib/apps";
+import { ok } from "../lib/logger";
 
 export function dbCommand(): Command {
   const cmd = new Command("db")
@@ -79,4 +81,14 @@ export function dbCommand(): Command {
     );
 
   return cmd;
+}
+
+/** No terminal, sem app configurado, pergunta qual usar antes de abrir. */
+export async function openDbAction(
+  branch: string,
+  appKey?: string,
+  deps: { chooseApp: () => Promise<string>; run: typeof runDbOpen } = { chooseApp: ensureDatabaseAppConfigured, run: runDbOpen },
+): Promise<void> {
+  const { app } = await deps.run({ branch, app: appKey ?? (await deps.chooseApp()) }, createSilentContext());
+  ok(`Banco de ${branch} aberto no ${app}`);
 }

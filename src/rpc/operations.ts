@@ -8,6 +8,7 @@ import {
   ferramentaExterna,
   preCondicao,
   runAddRepo as defaultRunAddRepo,
+  runDbOpen as defaultRunDbOpen,
   runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
   runPull as defaultRunPull,
@@ -54,6 +55,7 @@ export interface RpcOperationDeps {
   runPull: typeof defaultRunPull;
   runRmPreview: typeof defaultRunRmPreview;
   runRm: typeof defaultRunRm;
+  runDbOpen: typeof defaultRunDbOpen;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -68,6 +70,7 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runPull = deps.runPull ?? defaultRunPull;
   const runRmPreview = deps.runRmPreview ?? defaultRunRmPreview;
   const runRm = deps.runRm ?? defaultRunRm;
+  const runDbOpen = deps.runDbOpen ?? defaultRunDbOpen;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
   const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
@@ -118,6 +121,11 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     rm: withInput(
       z.strictObject({ branch: z.string().min(1), purge: z.boolean().default(false) }),
       (input, ctx) => runRm(input, ctx),
+    ),
+    // Sem `app`: pelo adapter abre sempre o app configurado no ns.
+    dbOpen: withInput(
+      z.strictObject({ branch: z.string().min(1) }),
+      (input, ctx) => runDbOpen(input, ctx),
     ),
   };
 }

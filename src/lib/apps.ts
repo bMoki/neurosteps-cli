@@ -104,20 +104,6 @@ export async function resolveDefaultIde(): Promise<string> {
   return "vscode";
 }
 
-export async function resolveDatabaseApp(): Promise<string> {
-  const configured = await getSetting("databaseApp");
-  if (configured && typeof configured === "string") {
-    const path = await resolveAppPath(configured);
-    if (path) return configured;
-  }
-  const detected = detectInstalledApps();
-  const dg = detected.find((a) => a.key === "datagrip");
-  if (dg) return "datagrip";
-  const firstDetected = detected[0];
-  if (firstDetected) return firstDetected.key;
-  return "datagrip";
-}
-
 export async function promptForApp(apps: DetectedApp[]): Promise<string> {
   assertInteractiveInput("escolher um app");
 
