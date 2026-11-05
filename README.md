@@ -194,6 +194,8 @@ ns db snapshot minha-branch antes-migracao
 ns db restore minha-branch antes-migracao
 ```
 
+Um nome que a branch já usa pede confirmação antes de substituir (`-f` substitui sem perguntar). Snapshots de branches removidas sem `--purge` aparecem em `ns db snapshots` como órfãos e continuam restauráveis por `origem:nome`.
+
 ### Remover uma workspace
 
 ```bash

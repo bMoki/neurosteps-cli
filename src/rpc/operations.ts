@@ -144,8 +144,9 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
       (input, ctx) => runDbSnapshots(input, ctx),
     ),
     // `name` obrigatório: pelo adapter, o nome é sempre pedido ao desenvolvedor.
+    // Nome repetido é `conflito`; o adapter confirma com o desenvolvedor antes de pedir `replace`.
     dbSnapshot: withInput(
-      z.strictObject({ branch: z.string().min(1), name: z.string().min(1) }),
+      z.strictObject({ branch: z.string().min(1), name: z.string().min(1), replace: z.boolean().default(false) }),
       (input, ctx) => runDbSnapshot(input, ctx),
     ),
     dbRestore: withInput(

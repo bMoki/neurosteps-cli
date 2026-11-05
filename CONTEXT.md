@@ -8,7 +8,10 @@ Glossário da linguagem do domínio. Apenas termos e seus significados — sem d
 Um ambiente de trabalho isolado para uma branch git: árvore de trabalho própria e um banco PostgreSQL próprio. Cada branch tem o seu banco, independente das demais.
 
 ### Snapshot
-Uma cópia salva do estado do banco de uma branch, tirada num momento específico. Um snapshot **pertence** à branch que o criou (sua **branch de origem**) e é **removido junto com ela** — não há snapshot órfão de branch inexistente.
+Uma cópia salva do estado do banco de uma branch, tirada num momento específico. Um snapshot **pertence** à branch que o criou (sua **branch de origem**), e seu nome é único dentro dela. Remover a branch pode levar os snapshots junto ou deixá-los como **snapshots órfãos**.
+
+### Snapshot órfão
+Um snapshot cuja branch de origem já não existe como worktree. Continua sendo um snapshot da sua branch de origem e pode ser restaurado em outra branch.
 
 ### Referência de snapshot (`branch:nome`)
 A forma canônica de endereçar um snapshot, inclusive a partir de outra branch. Escrita como `<branch-de-origem>:<nome>` (ex.: `master:snapshot1`).

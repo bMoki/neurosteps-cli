@@ -341,7 +341,7 @@ describe("ns rpc: protocolo", () => {
     const calls: unknown[] = [];
     const snapshot = { branch: "feat", name: "s", ref: "feat:s", createdAt: "2026-11-05T10:00:00.000Z", volume: "v" };
     const { send, settle, out, messagesOf } = startServer(createRpcOperations({
-      runDbSnapshots: async (input) => { calls.push(["dbSnapshots", input]); return [{ branch: "feat", snapshots: [snapshot] }]; },
+      runDbSnapshots: async (input) => { calls.push(["dbSnapshots", input]); return [{ branch: "feat", orphan: false, snapshots: [snapshot] }]; },
       runDbSnapshot: async (input) => { calls.push(["dbSnapshot", input]); return snapshot; },
       runDbRestore: async (input) => { calls.push(["dbRestore", input]); return { branch: input.branch, volume: "db", snapshot }; },
       runDbRmSnapshot: async (input) => { calls.push(["dbRmSnapshot", input]); return snapshot; },
@@ -352,15 +352,17 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r3", op: "dbRestore", input: { branch: "feat", ref: "master:seed" } });
     send({ type: "op", id: "r4", op: "dbRmSnapshot", input: { branch: "feat", name: "s" } });
     send({ type: "op", id: "r5", op: "dbSnapshot", input: { branch: "feat" } });
+    send({ type: "op", id: "r6", op: "dbSnapshot", input: { branch: "feat", name: "s", replace: true } });
     await settle();
 
     expect(calls).toEqual([
       ["dbSnapshots", {}],
-      ["dbSnapshot", { branch: "feat", name: "s" }],
+      ["dbSnapshot", { branch: "feat", name: "s", replace: false }],
       ["dbRestore", { branch: "feat", ref: "master:seed" }],
       ["dbRmSnapshot", { branch: "feat", name: "s" }],
+      ["dbSnapshot", { branch: "feat", name: "s", replace: true }],
     ]);
-    expect(out).toContainEqual({ type: "result", id: "r1", result: [{ branch: "feat", snapshots: [snapshot] }] });
+    expect(out).toContainEqual({ type: "result", id: "r1", result: [{ branch: "feat", orphan: false, snapshots: [snapshot] }] });
     expect(messagesOf("r5")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
   });
 

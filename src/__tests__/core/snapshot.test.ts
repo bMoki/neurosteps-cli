@@ -60,6 +60,48 @@ describe("runDbSnapshot", () => {
     expect(deps.composeDown).not.toHaveBeenCalled();
   });
 
+  test("nome que a branch já usa é conflito e não mexe no banco", async () => {
+    const { deps, files, addSnapshot } = createSnapshotDeps();
+    const dir = addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "vol-antigo");
+
+    await expectCategory(runDbSnapshot({ branch: "feat-123", name: "base" }, silent, deps), "conflito");
+    expect(deps.composeDown).not.toHaveBeenCalled();
+    expect(JSON.parse(files.get(join(dir, "base.json"))!).volume).toBe("vol-antigo");
+  });
+
+  test("com replace, troca o volume do Snapshot de mesmo nome", async () => {
+    const { deps, files, addSnapshot } = createSnapshotDeps();
+    const dir = addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "vol-antigo");
+
+    const snapshot = await runDbSnapshot({ branch: "feat-123", name: "base", replace: true }, silent, deps);
+
+    expect(deps.volumeRm).toHaveBeenCalledWith("vol-antigo");
+    expect(deps.volumeCopy).toHaveBeenCalledWith("myapp_db_feat-123", snapshot.volume);
+    expect(JSON.parse(files.get(join(dir, "base.json"))!).volume).toBe(snapshot.volume);
+  });
+
+  test("substituir copia para um volume novo quando o antigo tem o nome padrão", async () => {
+    const { deps, addSnapshot } = createSnapshotDeps();
+    addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "neurosteps_snapshot_feat-123_base");
+
+    const snapshot = await runDbSnapshot({ branch: "feat-123", name: "base", replace: true }, silent, deps);
+
+    expect(snapshot.volume).not.toBe("neurosteps_snapshot_feat-123_base");
+    expect(snapshot.volume.startsWith("neurosteps_snapshot_feat-123_base_")).toBe(true);
+    expect(deps.volumeRm).toHaveBeenCalledWith("neurosteps_snapshot_feat-123_base");
+  });
+
+  test("se a cópia falha ao substituir, o Snapshot anterior fica intacto", async () => {
+    const { deps, files, addSnapshot } = createSnapshotDeps();
+    const dir = addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "vol-antigo");
+    deps.volumeCopy = mock(() => Promise.reject(new Error("docker: no space left")));
+
+    await expectCategory(runDbSnapshot({ branch: "feat-123", name: "base", replace: true }, silent, deps), "ferramenta-externa");
+
+    expect(deps.volumeRm).not.toHaveBeenCalled();
+    expect(JSON.parse(files.get(join(dir, "base.json"))!).volume).toBe("vol-antigo");
+  });
+
   test("falha do docker vira ferramenta-externa, e o banco sobe de novo", async () => {
     const { deps } = createSnapshotDeps();
     deps.volumeCopy = mock(() => Promise.reject(new Error("docker: no space left")));
@@ -77,26 +119,58 @@ describe("runDbSnapshots", () => {
 
     const groups = await runDbSnapshots({ branch: "feat-123" }, silent, deps);
 
-    expect(groups).toEqual([{ branch: "feat-123", snapshots: [
+    expect(groups).toEqual([{ branch: "feat-123", orphan: false, snapshots: [
       { branch: "feat-123", name: "base", ref: "feat-123:base", createdAt: "2026-05-07T11:00:00.000Z", volume: "vol-feat-123-base" },
       { branch: "feat-123", name: "older", ref: "feat-123:older", createdAt: "2026-05-07T10:00:00.000Z", volume: "vol-feat-123-older" },
     ] }]);
   });
 
-  test("sem branch, agrupa por branch de origem as branches com pasta de Snapshots", async () => {
+  test("sem branch, agrupa por pasta de Snapshots, com as órfãs no fim", async () => {
     const { deps, dirs, addSnapshot } = createSnapshotDeps();
-    deps.listBranches = mock(() => ["feat-123", "master", "vazia", "sem-pasta"]);
+    deps.listBranches = mock(() => ["master", "feat-123", "vazia", "sem-pasta"]);
+    dirs.add(SNAPSHOTS_DIR);
+    addSnapshot("removida", "antes");
     addSnapshot("feat-123", "a");
     addSnapshot("master", "seed");
     dirs.add(join(SNAPSHOTS_DIR, "vazia"));
 
     const groups = await runDbSnapshots({}, silent, deps);
 
-    expect(groups.map(({ branch, snapshots }) => [branch, snapshots.map(({ ref }) => ref)])).toEqual([
-      ["feat-123", ["feat-123:a"]],
-      ["master", ["master:seed"]],
-      ["vazia", []],
+    expect(groups.map(({ branch, orphan, snapshots }) => [branch, orphan, snapshots.map(({ ref }) => ref)])).toEqual([
+      ["feat-123", false, ["feat-123:a"]],
+      ["master", false, ["master:seed"]],
+      ["vazia", false, []],
+      ["removida", true, ["removida:antes"]],
     ]);
+  });
+
+  test("um arquivo solto na pasta de Snapshots não derruba a lista", async () => {
+    const { deps, dirs, files, addSnapshot } = createSnapshotDeps();
+    dirs.add(SNAPSHOTS_DIR);
+    addSnapshot("feat-123", "a");
+    files.set(join(SNAPSHOTS_DIR, "notas.txt"), "x");
+    const readDir = deps.readDir;
+    deps.readDir = mock((path: string) => path.endsWith("notas.txt") ? Promise.reject(new Error("ENOTDIR")) : readDir(path));
+    deps.pathExists = mock((path: string) => dirs.has(path) || files.has(path));
+
+    const groups = await runDbSnapshots({}, silent, deps);
+
+    expect(groups.map(({ branch }) => branch)).toEqual(["feat-123"]);
+  });
+
+  test("sem a pasta de Snapshots, a lista vem vazia", async () => {
+    const { deps } = createSnapshotDeps();
+
+    expect(await runDbSnapshots({}, silent, deps)).toEqual([]);
+  });
+
+  test("um Snapshot órfão restaura no banco da branch alvo", async () => {
+    const { deps, addSnapshot } = createSnapshotDeps();
+    addSnapshot("removida", "antes");
+
+    await runDbRestore({ branch: "feat-123", ref: "removida:antes" }, silent, deps);
+
+    expect(deps.volumeCopy).toHaveBeenCalledWith("vol-removida-antes", "myapp_db_feat-123");
   });
 });
 
@@ -170,6 +244,17 @@ describe("runDbRestore", () => {
 });
 
 describe("runDbRmSnapshot", () => {
+  test("remove um Snapshot órfão sem precisar da worktree da branch", async () => {
+    const { deps, files, addSnapshot } = createSnapshotDeps();
+    deps.readEnv = mock(() => Promise.resolve(null));
+    const dir = addSnapshot("removida", "antes");
+
+    await runDbRmSnapshot({ branch: "removida", name: "antes" }, silent, deps);
+
+    expect(deps.volumeRm).toHaveBeenCalledWith("vol-removida-antes");
+    expect(files.has(join(dir, "antes.json"))).toBe(false);
+  });
+
   test("remove o Snapshot e aponta latest para o mais novo que sobrou", async () => {
     const { deps, files, addSnapshot } = createSnapshotDeps();
     const dir = addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "vol-base");

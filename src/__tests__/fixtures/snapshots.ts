@@ -31,9 +31,9 @@ export function createSnapshotDeps() {
     readDir: mock((path: string) => {
       const prefix = `${path}/`;
       const entries = new Set<string>();
-      for (const file of files.keys()) {
-        const rest = file.startsWith(prefix) ? file.slice(prefix.length) : "";
-        if (rest && !rest.includes("/")) entries.add(rest);
+      for (const entry of [...files.keys(), ...dirs]) {
+        const rest = entry.startsWith(prefix) ? entry.slice(prefix.length) : "";
+        if (rest) entries.add(rest.split("/")[0]!);
       }
       return Promise.resolve([...entries]);
     }),

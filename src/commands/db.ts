@@ -5,6 +5,7 @@ import { dbPortAction, logsAction } from "../actions/simple";
 import {
   type SnapshotDeps,
   createSilentContext,
+  isNsError,
   runDbOpen,
   runDbRestore,
   runDbRestorePreview,
@@ -52,7 +53,8 @@ export function dbCommand(): Command {
         .description("Salva o estado atual do banco")
         .argument("<branch>", "nome da branch")
         .argument("[name]", "nome do snapshot")
-        .action((branch, name) => snapshotAction(branch, name)),
+        .option("-f, --force", "substitui sem perguntar um snapshot com o mesmo nome")
+        .action((branch, name, opts) => snapshotAction(branch, name, opts.force)),
     )
     .addCommand(
       new Command("restore")
@@ -104,9 +106,17 @@ export interface SnapshotActionDeps extends SnapshotDeps {
   confirm: typeof defaultConfirm;
 }
 
-export async function snapshotAction(branch: string, name?: string, deps: Partial<SnapshotDeps> = {}): Promise<void> {
+export async function snapshotAction(branch: string, name?: string, force = false, deps: Partial<SnapshotActionDeps> = {}): Promise<void> {
+  const { confirm = defaultConfirm, ...snapshotDeps } = deps;
+  const existing = name && name !== "latest" ? await runDbSnapshotFind({ branch, name }, createSilentContext(), snapshotDeps).catch(ignoreNotFound) : null;
+  if (existing && !force && !(await confirm(`Já existe um snapshot '${existing.name}' em ${branch}. Substituir?`))) {
+    warn("Operação cancelada.");
+    return;
+  }
+
   const s = spinner(`Criando snapshot de ${branch}...`).start();
-  const snapshot = await runDbSnapshot({ branch, name }, createTerminalContext(s), deps).catch(stopSpinnerOnError(s));
+  const snapshot = await runDbSnapshot({ branch, name, replace: existing !== null }, createTerminalContext(s), snapshotDeps)
+    .catch(stopSpinnerOnError(s));
   s.succeed(`Snapshot '${snapshot.name}' criado para ${branch}`);
   emptyLine();
   detail("Volume", snapshot.volume);
@@ -171,12 +181,17 @@ export async function listSnapshotsAction(branch?: string, deps: Partial<Snapsho
     return;
   }
   for (const group of found) {
-    heading(`Snapshots: ${group.branch}`);
+    heading(group.orphan ? `Órfãos: ${group.branch} (branch removida)` : `Snapshots: ${group.branch}`);
     for (const snapshot of group.snapshots) {
       detail(snapshot.ref, `${snapshot.createdAt} · ${snapshot.volume}`);
     }
     emptyLine();
   }
+}
+
+function ignoreNotFound(error: unknown): null {
+  if (isNsError(error) && error.category === "nao-encontrado") return null;
+  throw error;
 }
 
 export async function rmSnapshotAction(

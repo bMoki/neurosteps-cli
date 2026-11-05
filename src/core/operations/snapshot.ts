@@ -5,7 +5,7 @@ import { z } from "zod";
 import { PRODUCT_NAME, SNAPSHOTS_DIR, WORKTREES_DIR, listBranches, readWorkspaceEnv, slugify, type WorkspaceEnv } from "../../lib/config";
 import { dockerComposeDown, dockerComposeUp, dockerVolumeCopy, dockerVolumeCreate, dockerVolumeRm, waitForPostgres } from "../../lib/docker";
 import type { NsContext } from "../context";
-import { asNsError, naoEncontrado, preCondicao } from "../errors";
+import { asNsError, conflito, naoEncontrado, preCondicao } from "../errors";
 
 /** Um Snapshot do banco, guardado na branch de origem. */
 export interface Snapshot {
@@ -16,19 +16,21 @@ export interface Snapshot {
   volume: string;
 }
 
-/** Os Snapshots de uma branch de origem, do mais novo para o mais antigo. */
+/** Os Snapshots de uma branch de origem, do mais novo para o mais antigo. Órfã: a branch já não tem worktree. */
 export interface SnapshotGroup {
   branch: string;
+  orphan: boolean;
   snapshots: Snapshot[];
 }
 
 export interface DbSnapshotInput {
   branch: string;
-  name?: string;   // default: data e hora atuais
+  name?: string;       // default: data e hora atuais
+  replace?: boolean;   // sem ele, um nome que a branch já usa é `conflito`
 }
 
 export interface DbSnapshotsInput {
-  branch?: string;   // sem branch: todas as branches que têm Snapshots
+  branch?: string;   // sem branch: todas as pastas de Snapshots, inclusive de branches removidas
 }
 
 export interface DbRestoreInput {
@@ -110,9 +112,15 @@ export async function runDbSnapshot(input: DbSnapshotInput, ctx: NsContext, deps
 
   const name = input.name || defaultName();
   const slug = slugify(name);
-  const volume = `${PRODUCT_NAME}_snapshot_${slugify(branch)}_${slug}`;
+  const baseVolume = `${PRODUCT_NAME}_snapshot_${slugify(branch)}_${slug}`;
   const dir = snapshotDir(branch);
   const createdAt = new Date().toISOString();
+  const existing = d.pathExists(snapshotFile(branch, name)) ? await readSnapshot(branch, name, d) : null;
+  if (existing && !input.replace) {
+    throw conflito(`Já existe um snapshot '${name}' em ${branch}`, "Confirme a substituição ou escolha outro nome.");
+  }
+  // Substituir copia para um volume novo e só apaga o antigo depois: se a cópia falhar, o Snapshot anterior fica intacto.
+  const volume = existing?.volume === baseVolume ? `${baseVolume}_${Date.now().toString(36)}` : baseVolume;
 
   await withStoppedDatabase(branch, env, ctx, d, async () => {
     ctx.emit({ step: "snapshot:copy", label: "Copiando volume do banco..." });
@@ -122,18 +130,28 @@ export async function runDbSnapshot(input: DbSnapshotInput, ctx: NsContext, deps
     const meta: SnapshotMeta = { name, slug, volume, created_at: createdAt, source_branch: branch, source_volume: env.DB_VOLUME };
     await d.writeText(snapshotFile(branch, name), JSON.stringify(meta, null, 2));
     await d.writeText(join(dir, "latest"), name);
+    if (existing) await d.volumeRm(existing.volume);
   });
   return toSnapshot(branch, { name, volume, created_at: createdAt });
 }
 
-/** Lista os Snapshots por branch de origem. Sem branch, traz as branches que têm pasta de Snapshots. */
+/**
+ * Lista os Snapshots por branch de origem. Sem branch, traz cada pasta de Snapshots: primeiro as das
+ * branches com worktree, depois as órfãs, de branches removidas sem `purge`.
+ */
 export async function runDbSnapshots(input: DbSnapshotsInput, _ctx: NsContext, deps: Partial<SnapshotDeps> = {}): Promise<SnapshotGroup[]> {
   const d = { ...defaultDeps, ...deps };
-  if (input.branch) {
-    return [{ branch: input.branch, snapshots: await listSnapshots(input.branch, d) }];
-  }
-  const branches = d.listBranches().filter((branch) => d.pathExists(snapshotDir(branch)));
-  return Promise.all(branches.map(async (branch) => ({ branch, snapshots: await listSnapshots(branch, d) })));
+  const active = new Set(d.listBranches());
+  const group = async (branch: string): Promise<SnapshotGroup> =>
+    ({ branch, orphan: !active.has(branch), snapshots: await listSnapshots(branch, d) });
+  if (input.branch) return [await group(input.branch)];
+  // Um arquivo solto na pasta de Snapshots não é uma branch: fica de fora em vez de derrubar a lista.
+  const folder = (branch: string) => group(branch).catch(() => null);
+  const folders = d.pathExists(SNAPSHOTS_DIR)
+    ? (await d.readDir(SNAPSHOTS_DIR).catch((error) => { throw asNsError(error); })).filter((name) => !name.startsWith(".")).sort()
+    : [];
+  const groups = (await Promise.all(folders.map(folder))).filter((found): found is SnapshotGroup => found !== null);
+  return [...groups.filter(({ orphan }) => !orphan), ...groups.filter(({ orphan }) => orphan)];
 }
 
 /** Prévia de Restaurar: resolve a referência sem mexer no banco. */

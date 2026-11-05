@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { listSnapshotsAction, restoreAction, rmSnapshotAction } from "../../commands/db";
+import { listSnapshotsAction, restoreAction, rmSnapshotAction, snapshotAction } from "../../commands/db";
+import { SNAPSHOTS_DIR } from "../../lib/config";
 import { createSnapshotDeps } from "../fixtures/snapshots";
 
 const originalError = console.error;
@@ -51,7 +52,57 @@ describe("ns db restore", () => {
   });
 });
 
+describe("ns db snapshot", () => {
+  test("nome repetido pergunta antes de substituir", async () => {
+    const { deps, addSnapshot } = createSnapshotDeps();
+    addSnapshot("feat-123", "base", "2026-05-07T11:00:00.000Z", "vol-antigo");
+    const confirm = mock(() => Promise.resolve(true));
+    captureStderr();
+
+    await snapshotAction("feat-123", "base", false, { ...deps, confirm });
+
+    expect((confirm.mock.calls[0] as any)[0]).toBe("Já existe um snapshot 'base' em feat-123. Substituir?");
+    expect(deps.volumeRm).toHaveBeenCalledWith("vol-antigo");
+  });
+
+  test("resposta não mantém o Snapshot antigo sem mexer no banco", async () => {
+    const { deps, addSnapshot } = createSnapshotDeps();
+    addSnapshot("feat-123", "base");
+    captureStderr();
+
+    await snapshotAction("feat-123", "base", false, { ...deps, confirm: mock(() => Promise.resolve(false)) });
+
+    expect(deps.composeDown).not.toHaveBeenCalled();
+  });
+
+  test("--force substitui sem perguntar, e nome novo não pergunta", async () => {
+    const { deps, addSnapshot } = createSnapshotDeps();
+    addSnapshot("feat-123", "base");
+    const confirm = mock(() => Promise.resolve(false));
+    captureStderr();
+
+    await snapshotAction("feat-123", "base", true, { ...deps, confirm });
+    await snapshotAction("feat-123", "novo", false, { ...deps, confirm });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(deps.volumeCopy).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("ns db snapshots", () => {
+  test("mostra os Snapshots de branches removidas como órfãos", async () => {
+    const { deps, dirs, addSnapshot } = createSnapshotDeps();
+    dirs.add(SNAPSHOTS_DIR);
+    addSnapshot("feat-123", "base");
+    addSnapshot("removida", "antes");
+    const lines = captureStderr();
+
+    await listSnapshotsAction(undefined, deps);
+
+    expect(lines.some((line) => line.includes("Snapshots: feat-123"))).toBe(true);
+    expect(lines.some((line) => line.includes("Órfãos: removida (branch removida)"))).toBe(true);
+  });
+
   test("lista por branch com a referência completa", async () => {
     const { deps, addSnapshot } = createSnapshotDeps();
     addSnapshot("feat-123", "base");
