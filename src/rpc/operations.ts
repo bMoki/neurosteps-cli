@@ -9,6 +9,10 @@ import {
   preCondicao,
   runAddRepo as defaultRunAddRepo,
   runDbOpen as defaultRunDbOpen,
+  runDbRestore as defaultRunDbRestore,
+  runDbRmSnapshot as defaultRunDbRmSnapshot,
+  runDbSnapshot as defaultRunDbSnapshot,
+  runDbSnapshots as defaultRunDbSnapshots,
   runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
   runPull as defaultRunPull,
@@ -56,6 +60,10 @@ export interface RpcOperationDeps {
   runRmPreview: typeof defaultRunRmPreview;
   runRm: typeof defaultRunRm;
   runDbOpen: typeof defaultRunDbOpen;
+  runDbSnapshots: typeof defaultRunDbSnapshots;
+  runDbSnapshot: typeof defaultRunDbSnapshot;
+  runDbRestore: typeof defaultRunDbRestore;
+  runDbRmSnapshot: typeof defaultRunDbRmSnapshot;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -71,6 +79,10 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runRmPreview = deps.runRmPreview ?? defaultRunRmPreview;
   const runRm = deps.runRm ?? defaultRunRm;
   const runDbOpen = deps.runDbOpen ?? defaultRunDbOpen;
+  const runDbSnapshots = deps.runDbSnapshots ?? defaultRunDbSnapshots;
+  const runDbSnapshot = deps.runDbSnapshot ?? defaultRunDbSnapshot;
+  const runDbRestore = deps.runDbRestore ?? defaultRunDbRestore;
+  const runDbRmSnapshot = deps.runDbRmSnapshot ?? defaultRunDbRmSnapshot;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
   const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
@@ -126,6 +138,23 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     dbOpen: withInput(
       z.strictObject({ branch: z.string().min(1) }),
       (input, ctx) => runDbOpen(input, ctx),
+    ),
+    dbSnapshots: withInput(
+      z.strictObject({ branch: z.string().min(1).optional() }),
+      (input, ctx) => runDbSnapshots(input, ctx),
+    ),
+    // `name` obrigatório: pelo adapter, o nome é sempre pedido ao desenvolvedor.
+    dbSnapshot: withInput(
+      z.strictObject({ branch: z.string().min(1), name: z.string().min(1) }),
+      (input, ctx) => runDbSnapshot(input, ctx),
+    ),
+    dbRestore: withInput(
+      z.strictObject({ branch: z.string().min(1), ref: z.string().min(1) }),
+      (input, ctx) => runDbRestore(input, ctx),
+    ),
+    dbRmSnapshot: withInput(
+      z.strictObject({ branch: z.string().min(1), name: z.string().min(1) }),
+      (input, ctx) => runDbRmSnapshot(input, ctx),
     ),
   };
 }

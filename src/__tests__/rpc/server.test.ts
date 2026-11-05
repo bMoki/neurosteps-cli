@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm", "dbOpen"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm", "dbOpen", "dbSnapshots", "dbSnapshot", "dbRestore", "dbRmSnapshot"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -337,6 +337,33 @@ describe("ns rpc: protocolo", () => {
     expect(messagesOf("r2")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
   });
 
+  test("operações de Snapshot repassam o input, e Tirar snapshot exige um nome", async () => {
+    const calls: unknown[] = [];
+    const snapshot = { branch: "feat", name: "s", ref: "feat:s", createdAt: "2026-11-05T10:00:00.000Z", volume: "v" };
+    const { send, settle, out, messagesOf } = startServer(createRpcOperations({
+      runDbSnapshots: async (input) => { calls.push(["dbSnapshots", input]); return [{ branch: "feat", snapshots: [snapshot] }]; },
+      runDbSnapshot: async (input) => { calls.push(["dbSnapshot", input]); return snapshot; },
+      runDbRestore: async (input) => { calls.push(["dbRestore", input]); return { branch: input.branch, volume: "db", snapshot }; },
+      runDbRmSnapshot: async (input) => { calls.push(["dbRmSnapshot", input]); return snapshot; },
+    }));
+
+    send({ type: "op", id: "r1", op: "dbSnapshots", input: {} });
+    send({ type: "op", id: "r2", op: "dbSnapshot", input: { branch: "feat", name: "s" } });
+    send({ type: "op", id: "r3", op: "dbRestore", input: { branch: "feat", ref: "master:seed" } });
+    send({ type: "op", id: "r4", op: "dbRmSnapshot", input: { branch: "feat", name: "s" } });
+    send({ type: "op", id: "r5", op: "dbSnapshot", input: { branch: "feat" } });
+    await settle();
+
+    expect(calls).toEqual([
+      ["dbSnapshots", {}],
+      ["dbSnapshot", { branch: "feat", name: "s" }],
+      ["dbRestore", { branch: "feat", ref: "master:seed" }],
+      ["dbRmSnapshot", { branch: "feat", name: "s" }],
+    ]);
+    expect(out).toContainEqual({ type: "result", id: "r1", result: [{ branch: "feat", snapshots: [snapshot] }] });
+    expect(messagesOf("r5")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -364,8 +391,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot." } },
     ]);
   });
 

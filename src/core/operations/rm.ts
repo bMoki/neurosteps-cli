@@ -1,6 +1,6 @@
 import { rm } from "fs/promises";
 import { join } from "path";
-import { removeBranchSnapshots } from "../../actions/snapshot";
+import { removeBranchSnapshots } from "./snapshot";
 import {
   BACKEND_REPO,
   DOCS_REPO,

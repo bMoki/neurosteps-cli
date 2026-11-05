@@ -55,3 +55,15 @@ export { runRm, runRmPreview, uncommittedError } from "./operations/rm";
 
 export type { DbOpenDeps, DbOpenInput, DbOpenResult } from "./operations/db-open";
 export { runDbOpen } from "./operations/db-open";
+
+export type {
+  DbRestoreInput,
+  DbRestorePreview,
+  DbSnapshotNameInput,
+  DbSnapshotInput,
+  DbSnapshotsInput,
+  Snapshot,
+  SnapshotDeps,
+  SnapshotGroup,
+} from "./operations/snapshot";
+export { runDbRestore, runDbRestorePreview, runDbRmSnapshot, runDbSnapshot, runDbSnapshotFind, runDbSnapshots, snapshotFile } from "./operations/snapshot";
