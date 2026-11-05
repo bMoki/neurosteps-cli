@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
 import { type NsProgressEvent, NsError, runStop } from "../../core";
-import { createMockWorkspaceEnv, mockBunShell } from "../setup";
+import { TEST_BACKEND_PORT, createMockWorkspaceEnv, createShellResult, mockBunShell } from "../setup";
 
 type Env = ReturnType<typeof createMockWorkspaceEnv>;
 
@@ -43,6 +43,40 @@ describe("runStop", () => {
     await run.catch((error: NsError) => {
       expect(error.category).toBe("ferramenta-externa");
       expect(error.message).toBe("docker fora");
+    });
+  });
+
+  test("com service, para só aquele Serviço: a sessão dele e o que atende na porta dele", async () => {
+    const events: NsProgressEvent[] = [];
+    const composeDown = mock(() => Promise.resolve());
+    const rmAlias = mock(() => Promise.resolve());
+    const exec = mock((command: string[]) => Promise.resolve(command[0] === "lsof"
+      ? createShellResult(command, { stdout: "101\n" })
+      : createShellResult(command)));
+
+    await runStop({ branch: "feat-123", service: "backend" }, {
+      emit: (event) => events.push(event),
+      ask: async () => true,
+    }, deps({ composeDown, rmAlias, exec }));
+
+    expect(exec.mock.calls.map(([command]) => command)).toEqual([
+      ["tmux", "kill-session", "-t", "=ns-feat-123-backend"],
+      ["lsof", "-ti", `:${TEST_BACKEND_PORT}`],
+      ["kill", "-9", "101"],
+    ]);
+    expect(composeDown).not.toHaveBeenCalled();
+    expect(rmAlias).not.toHaveBeenCalled();
+    expect(events).toEqual([{ step: "processes:stop", label: "Parando backend..." }]);
+  });
+
+  test("Serviço que a branch não tem é nao-encontrado", async () => {
+    const run = runStop({ branch: "feat-123", service: "report-server" }, { emit() {}, ask: async () => true }, deps({
+      readEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({ REPORT_SERVER_PORT: undefined }) as Env)),
+    }));
+
+    await run.then(() => { throw new Error("devia falhar"); }, (error: NsError) => {
+      expect(error.category).toBe("nao-encontrado");
+      expect(error.message).toBe("A branch 'feat-123' não tem o Serviço report-server");
     });
   });
 });

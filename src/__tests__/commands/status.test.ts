@@ -35,6 +35,8 @@ function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
     ports: { db: 5438, backend: 8084, frontend: 3015 },
     services: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
     aliases: { backend: `feat-123.api.${PRODUCT_NAME}`, frontend: `feat-123.web.${PRODUCT_NAME}` },
+    sessions: { backend: "ns-feat-123-backend", frontend: "ns-feat-123-frontend" },
+    errors: {},
     flags: [],
     stale: false,
     lastCommitAt: null,

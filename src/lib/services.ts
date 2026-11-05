@@ -86,6 +86,24 @@ export async function listServicePanes(run: typeof exec = exec): Promise<Map<str
   return panes;
 }
 
+// Palavra inteira, para não pegar "0 errors" nem "failed=0"; `Exception` também no fim de `BindException`.
+const ERROR_LINE = /\b(error|fatal|erro)\b|exception\b|\bfailed\b(?!\s*[=:]\s*0)/i;
+// Cores e movimentos de cursor do terminal, que o `pipe-pane` grava junto com o texto.
+const ANSI = /\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07]*\x07/g;
+
+/**
+ * A linha que resume por que o Serviço falhou: a última do log que fala em erro, ou a
+ * última linha, se nenhuma fala. Só olha o fim do log, onde a falha fica.
+ */
+export async function lastErrorLine(logFile: string): Promise<string | null> {
+  const file = Bun.file(logFile);
+  if (!(await file.exists())) return null;
+  const tail = await file.slice(Math.max(0, file.size - 16_384)).text();
+  const lines = tail.replace(ANSI, "").split(/\r?\n|\r/).map((line) => line.trim()).filter(Boolean);
+  const line = lines.findLast((candidate) => ERROR_LINE.test(candidate)) ?? lines.at(-1);
+  return line ? line.slice(0, 240) : null;
+}
+
 /** Derruba a sessão do Serviço. Sessão que não existe, ou tmux ausente, não é erro. */
 export async function stopService(session: string, run: typeof exec = exec): Promise<void> {
   try {

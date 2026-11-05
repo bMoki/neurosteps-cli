@@ -60,6 +60,27 @@ describe("runStatus", () => {
     expect(status.aliases.reportServer).toBeUndefined();
   });
 
+  test("informa a sessão de cada Serviço e, de quem Falhou, a linha do erro", async () => {
+    const readServiceError = mock((_branch: string, id: string) => Promise.resolve(`erro do ${id}`));
+    const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({
+      listServicePanes: mock(() => Promise.resolve(new Map([
+        ["ns-feat-123-backend", "failed" as const],
+        ["ns-feat-123-frontend", "alive" as const],
+      ]))),
+      readServiceError,
+    }));
+
+    const status = result.branches[0]!;
+    expect(status.sessions).toEqual({
+      backend: "ns-feat-123-backend",
+      frontend: "ns-feat-123-frontend",
+      manager: "ns-feat-123-manager",
+      reportServer: undefined,
+    });
+    expect(status.errors).toEqual({ backend: "erro do backend" });
+    expect(readServiceError).toHaveBeenCalledTimes(1);
+  });
+
   test("serviço ausente na branch vira null, não false", async () => {
     const result = await runStatus({}, createSilentContext(), createDeps({
       readWorkspaceEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({

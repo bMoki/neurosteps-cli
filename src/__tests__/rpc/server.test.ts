@@ -146,6 +146,54 @@ describe("ns rpc: protocolo", () => {
     expect(out.at(-1)).toMatchObject({ type: "result", id: "r1" });
   });
 
+  test("start com service sobe só aquele Serviço", async () => {
+    const service: ServicePlan = {
+      id: "backend", label: "Backend", cwd: "/wt/feat/backend", env: {}, command: "mvn quarkus:dev",
+      port: 8084, session: "ns-feat-backend", logFile: "/tmp/ns-rpc-test/feat/backend.log",
+    };
+    const created: string[] = [];
+    const prepared: unknown[] = [];
+    const { send, settle, out } = startServer(createRpcOperations({
+      runPrepare: async (input) => {
+        prepared.push(input);
+        return { ...PREPARED, services: [service, { ...service, id: "frontend", label: "Frontend", port: 3015, session: "ns-feat-frontend" }] };
+      },
+      runTmux: async (command) => {
+        if (command[1] === "new-session") created.push(command[4]!);
+        return command[1] === "display-message"
+          ? createShellResult(command, { exitCode: 1 })
+          : createShellResult(command);
+      },
+      listListeningPorts: async () => new Set(),
+    }));
+
+    send({ type: "op", id: "r1", op: "start", input: { branch: "feat", installMissingDeps: "always", service: "frontend" } });
+    await new Promise((r) => setTimeout(r, 20));
+    await settle();
+
+    expect(prepared).toEqual([{ branch: "feat", installMissingDeps: "always" }]);
+    expect(created).toEqual(["ns-feat-frontend"]);
+    expect(out.at(-1)).toMatchObject({ type: "result", id: "r1" });
+  });
+
+  test("start de um Serviço que a branch não tem é nao-encontrado; Serviço desconhecido é recusado", async () => {
+    const { send, settle, messagesOf } = startServer(createRpcOperations({
+      runPrepare: async () => PREPARED,
+      runTmux: async (command) => createShellResult(command),
+      listListeningPorts: async () => new Set(),
+    }));
+
+    send({ type: "op", id: "r1", op: "start", input: { branch: "feat", service: "manager" } });
+    send({ type: "op", id: "r2", op: "start", input: { branch: "feat", service: "db" } });
+    await new Promise((r) => setTimeout(r, 20));
+    await settle();
+
+    const [missing] = messagesOf("r1");
+    expect(missing?.type === "error" && missing.error.category).toBe("nao-encontrado");
+    const [unknown] = messagesOf("r2");
+    expect(unknown?.type === "error" && unknown.error.category).toBe("protocolo");
+  });
+
   test("start sem tmux é pre-condicao e nem prepara a branch", async () => {
     let called = false;
     const { send, settle, messagesOf } = startServer(createRpcOperations({
@@ -169,10 +217,11 @@ describe("ns rpc: protocolo", () => {
     }));
 
     send({ type: "op", id: "r1", op: "stop", input: { branch: "feat" } });
+    send({ type: "op", id: "r2", op: "stop", input: { branch: "feat", service: "backend" } });
     await settle();
 
-    expect(calls).toEqual([{ branch: "feat" }]);
-    expect(out).toEqual([{ type: "result", id: "r1", result: { branch: "feat" } }]);
+    expect(calls).toEqual([{ branch: "feat" }, { branch: "feat", service: "backend" }]);
+    expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat" } });
   });
 
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {

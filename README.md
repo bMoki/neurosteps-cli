@@ -275,8 +275,8 @@ ns rm minha-branch --force
 | `ns open <branch>` | Prepara e abre a workspace no IDE configurado. | Não sobrescreve configs IntelliJ existentes. |
 | `ns open <branch> --no-prepare` | Abre a workspace sem subir DB/aliases. | Útil quando já está tudo rodando. |
 | `ns open <branch> --app <name>` | Abre em um app específico. | Exemplo: `intellij`, `vscode`, `webstorm`. |
-| `ns start <branch>` | Sobe DB, aliases e uma sessão tmux por serviço, com uma janela do Terminal em cada. | Backend, frontend e manager quando existir. |
-| `ns stop <branch>` | Para DB, remove aliases, derruba as sessões tmux e mata processos das portas. | Compartilha rotina de shutdown com `close`. |
+| `ns start <branch> [serviço]` | Sobe DB, aliases e uma sessão tmux por serviço, com uma janela do Terminal em cada. | Backend, frontend e manager quando existir. Com `serviço` (`backend`, `frontend`, `manager`, `report-server`), sobe só aquele. |
+| `ns stop <branch> [serviço]` | Para DB, remove aliases, derruba as sessões tmux e mata processos das portas. | Compartilha rotina de shutdown com `close`. Com `serviço`, para só aquele e deixa o DB e os outros rodando. |
 | `ns close <branch>` | Faz `stop` e fecha janelas do IDE. | Fecha janelas cujo nome contém a branch. |
 | `ns portless <branch>` | Registra aliases Portless da branch. | Não sobe todos os serviços. |
 | `ns pull [remote] [branch]` | Roda `git pull` em paralelo em todos os repos da branch (padrão: `origin @default`). | `@default` resolve a branch principal de cada repo (`main`/`master`). Branch é inferida do diretório atual ou via `-b`. Repos sem a branch no remoto são ignorados; falhas não interrompem os demais e resultam em exit 1. |

@@ -42,6 +42,23 @@ describe("stopAction", () => {
     expect(exec).toHaveBeenCalledWith(["kill", "-9", "301"], { silent: true });
   });
 
+  test("with a service, stops only that service and keeps the database and aliases", async () => {
+    const exec = mock((command: string[]) => Promise.resolve(command[0] === "lsof"
+      ? createShellResult(command, { stdout: "201\n" })
+      : createShellResult(command)));
+    const mocks = createMocks(exec);
+
+    await stopAction("feat-123", { service: "frontend" }, mocks);
+
+    expect(exec.mock.calls.map(([command]) => command)).toEqual([
+      ["tmux", "kill-session", "-t", "=ns-feat-123-frontend"],
+      ["lsof", "-ti", `:${TEST_FRONTEND_PORT}`],
+      ["kill", "-9", "201"],
+    ]);
+    expect(mocks.composeDown).not.toHaveBeenCalled();
+    expect(mocks.rmAlias).not.toHaveBeenCalled();
+  });
+
   test("does not treat an empty lsof result as an error", async () => {
     const exec = mock((command: string[]) => {
       if (command[0] === "lsof") {

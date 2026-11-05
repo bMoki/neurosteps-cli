@@ -20,6 +20,7 @@ export type {
   BaseRepo,
   BranchStatus,
   DbState,
+  ServiceKey,
   ServiceState,
   StatusInput,
   StatusResult,
@@ -34,7 +35,7 @@ export type {
   ServiceId,
   ServicePlan,
 } from "./operations/prepare";
-export { runPrepare } from "./operations/prepare";
+export { runPrepare, servicesToStart } from "./operations/prepare";
 
 export type { StopInput, StopResult } from "./operations/stop";
 export { runStop } from "./operations/stop";

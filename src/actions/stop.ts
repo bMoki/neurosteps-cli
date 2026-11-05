@@ -1,5 +1,7 @@
 import { spinner } from "../lib/logger";
 import { listBranches } from "../lib/config";
+import { type ServiceId, isNsError, runStop } from "../core";
+import { createTerminalContext } from "../lib/terminal-context";
 import {
   type BranchShutdownDeps,
   BranchShutdownNotFoundError,
@@ -8,7 +10,7 @@ import {
 
 export async function stopAction(
   branch: string | undefined,
-  opts: { all?: boolean },
+  opts: { all?: boolean; service?: ServiceId },
   deps: Partial<BranchShutdownDeps> = {},
 ): Promise<void> {
   if (opts.all) {
@@ -19,7 +21,29 @@ export async function stopAction(
     spinner("").fail("Especifique uma branch ou use --all (-a)");
     process.exit(1);
   }
+  if (opts.service) {
+    await stopServiceAction(branch, opts.service, deps);
+    return;
+  }
   await stopSingleAction(branch, deps);
+}
+
+async function stopServiceAction(
+  branch: string,
+  service: ServiceId,
+  deps: Partial<BranchShutdownDeps> = {},
+): Promise<void> {
+  const s = spinner(`Parando ${service} de ${branch}...`).start();
+  try {
+    await runStop({ branch, service }, createTerminalContext(s), deps);
+  } catch (error) {
+    if (isNsError(error) && error.category === "nao-encontrado") {
+      s.fail(error.message);
+      process.exit(1);
+    }
+    throw error;
+  }
+  s.succeed(`${service} parado em ${branch}`);
 }
 
 async function stopSingleAction(branch: string, deps: Partial<BranchShutdownDeps> = {}): Promise<void> {

@@ -3,12 +3,15 @@ import {
   type NsContext,
   type PrepareInput,
   type PrepareResult,
+  type ServiceId,
   ferramentaExterna,
   preCondicao,
   runPrepare as defaultRunPrepare,
   runStatus as defaultRunStatus,
   runStop as defaultRunStop,
+  servicesToStart,
 } from "../core";
+import { SERVICE_IDS } from "../lib/config";
 import { listListeningPorts } from "../lib/ports";
 import { hasTmux, startService } from "../lib/services";
 import { exec } from "../lib/shell";
@@ -57,6 +60,7 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     withReportServer: z.boolean().optional(),
     installMissingDeps: z.enum(["always", "ask", "never"]).default("ask"),
   });
+  const service = z.enum(SERVICE_IDS).optional();
 
   return {
     status: withInput(
@@ -64,9 +68,12 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
       (input, ctx) => runStatus(input, ctx),
     ),
     prepare: withInput(prepareInput, (input, ctx) => runPrepare(input, ctx)),
-    start: withInput(prepareInput, (input, ctx) => startBranch(input, ctx, { runPrepare, runTmux, listening })),
+    start: withInput(
+      prepareInput.extend({ service }),
+      ({ service, ...input }, ctx) => startBranch(input, service, ctx, { runPrepare, runTmux, listening }),
+    ),
     stop: withInput(
-      z.strictObject({ branch: z.string().min(1) }),
+      z.strictObject({ branch: z.string().min(1), service }),
       (input, ctx) => runStop(input, ctx),
     ),
   };
@@ -76,9 +83,12 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
  * Iniciar: Preparar e subir o Plano de serviços em sessões tmux, como o `ns start`, mas sem
  * abrir janelas. Sem tmux não há como o Serviço sobreviver ao cliente, então nem prepara.
  * Serviço que já atende na porta (subiu pelo terminal, pela IDE) fica como está.
+ * Com `service`, sobe só aquele Serviço; a branch é preparada do mesmo jeito, porque o
+ * Serviço precisa do banco e dos aliases.
  */
 async function startBranch(
   input: PrepareInput,
+  service: ServiceId | undefined,
   ctx: NsContext,
   deps: Pick<RpcOperationDeps, "runPrepare" | "runTmux"> & { listening: () => Promise<Set<number>> },
 ): Promise<PrepareResult> {
@@ -87,10 +97,11 @@ async function startBranch(
     throw preCondicao("tmux não encontrado: os Serviços precisam dele para continuar rodando.", "Instale com: brew install tmux");
   }
   const result = await runPrepare(input, ctx);
+  const planned = servicesToStart(result, service);
   const listening = await deps.listening();
-  for (const service of result.services.filter(({ port }) => !listening.has(port))) {
-    ctx.emit({ step: `start:${service.id}`, label: `Iniciando ${service.label}...` });
-    await startService(service, runTmux).catch((error) => {
+  for (const plan of planned.filter(({ port }) => !listening.has(port))) {
+    ctx.emit({ step: `start:${plan.id}`, label: `Iniciando ${plan.label}...` });
+    await startService(plan, runTmux).catch((error) => {
       throw ferramentaExterna(error instanceof Error ? error.message : String(error), { cause: error });
     });
   }

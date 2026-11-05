@@ -1,24 +1,30 @@
-import { Command } from "commander";
-import { resolveBackendDir } from "../lib/config";
+import { Argument, Command } from "commander";
+import { SERVICE_IDS, resolveBackendDir } from "../lib/config";
 import { exec, formatShellCommand, spawnTerminal } from "../lib/shell";
 import { attachCommand, hasTmux, startService } from "../lib/services";
 import { detail, emptyLine, hint, spinner, warn } from "../lib/logger";
 import { openAiApp } from "../lib/apps";
-import type { ServicePlan } from "../core";
+import { type ServiceId, type ServicePlan, servicesToStart } from "../core";
 import { type PrepareActionDeps, printUrls, runPrepareInTerminal } from "./prepare";
 
 export function startCommand(): Command {
   return new Command("start")
     .description("Inicia DB + backend + frontend no Terminal")
     .argument("<branch>", "nome da branch")
+    .addArgument(new Argument("[service]", "inicia só este serviço").choices(SERVICE_IDS))
     .option("--claude", "abre Claude Desktop")
     .option("--opencode", "abre OpenCode")
     .option("--codex", "abre Codex (OpenAI CLI)")
     .option("--no-manager", "não inicia o repo manager")
     .option("--no-report-server", "não inicia o repo report-server")
-    .action(async (branch, opts) => {
+    .action(async (branch, service, opts) => {
       const aiFlag = opts.claude ? "claude" : opts.opencode ? "opencode" : opts.codex ? "codex" : undefined;
-      await startAction(branch, { aiFlag, noManager: opts.manager === false, noReportServer: opts.reportServer === false });
+      await startAction(branch, {
+        aiFlag,
+        service,
+        noManager: opts.manager === false,
+        noReportServer: opts.reportServer === false,
+      });
     });
 }
 
@@ -31,6 +37,7 @@ export interface StartActionDeps extends PrepareActionDeps {
   spawnTerm?: typeof spawnTerminal;
   runTmux?: typeof exec;
   aiFlag?: string;
+  service?: ServiceId;
   noManager?: boolean;
   noReportServer?: boolean;
 }
@@ -40,6 +47,7 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     spawnTerm = spawnTerminal,
     runTmux = exec,
     aiFlag,
+    service,
     noManager = false,
     noReportServer = false,
     ...prepareDeps
@@ -53,7 +61,13 @@ export async function startAction(branch: string, deps: StartActionDeps = {}): P
     installMissingDeps: "ask",
   }, prepareDeps);
 
-  const services = result.services;
+  let services: ServicePlan[];
+  try {
+    services = servicesToStart(result, service);
+  } catch (error) {
+    s.fail(error instanceof Error ? error.message : String(error));
+    throw error;
+  }
   const tmux = await hasTmux(runTmux);
   const alreadyRunning: ServicePlan[] = [];
   if (tmux) {

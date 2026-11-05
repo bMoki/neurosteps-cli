@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { STATE_DIR } from "../../lib/config";
-import { attachCommand, hasTmux, listServicePanes, startService, stopService, type ServiceSession } from "../../lib/services";
+import { attachCommand, hasTmux, lastErrorLine, listServicePanes, startService, stopService, type ServiceSession } from "../../lib/services";
 import { createShellResult } from "../setup";
 
 const service = (logFile: string): ServiceSession => ({
@@ -128,5 +128,29 @@ describe("listServicePanes", () => {
       Promise.resolve(createShellResult(command, { exitCode: 1, stderr: "no server running" })));
     expect((await listServicePanes(noServer)).size).toBe(0);
     expect((await listServicePanes(mock(() => Promise.reject(new Error("ENOENT"))))).size).toBe(0);
+  });
+});
+
+describe("lastErrorLine", () => {
+  test("acha a última linha que fala em erro, sem as cores do terminal", async () => {
+    const logFile = join(STATE_DIR, "feat-log", "report-server.log");
+    mkdirSync(join(STATE_DIR, "feat-log"), { recursive: true });
+    writeFileSync(logFile, [
+      "\x1b[34mINFO\x1b[0m  Starting",
+      "\x1b[31mERROR\x1b[0m Failed to start application",
+      "Caused by: java.net.BindException: Port 8457 already in use",
+      "\tat sun.nio.ch.Net.bind0(Native Method)",
+      "",
+    ].join("\r\n"));
+
+    expect(await lastErrorLine(logFile)).toBe("Caused by: java.net.BindException: Port 8457 already in use");
+  });
+
+  test("sem linha de erro, fica a última; sem log, nada", async () => {
+    const logFile = join(STATE_DIR, "feat-log", "frontend.log");
+    writeFileSync(logFile, "compilando\n0 errors, failed=0\nsaiu\n\n");
+
+    expect(await lastErrorLine(logFile)).toBe("saiu");
+    expect(await lastErrorLine(join(STATE_DIR, "feat-log", "nada.log"))).toBeNull();
   });
 });

@@ -49,6 +49,31 @@ describe("startAction", () => {
     ]);
   });
 
+  test("com um serviço, sobe e abre só a janela dele", async () => {
+    const spawnTerm = mock(async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {});
+    const runTmux = freshTmux();
+
+    await startAction("feat-123", createDeps({
+      service: "frontend",
+      spawnTerm,
+      runTmux: runTmux as StartActionDeps["runTmux"],
+    }));
+
+    const created = runTmux.mock.calls.map(([command]) => command).filter((command) => command[1] === "new-session");
+    expect(created.map((command) => command[4])).toEqual(["ns-feat-123-frontend"]);
+    expect(spawnTerm.mock.calls.map(([, , command]) => command)).toEqual(["tmux attach-session -t ns-feat-123-frontend"]);
+  });
+
+  test("um serviço que a branch não tem falha sem subir nada", async () => {
+    const runTmux = freshTmux();
+
+    await expect(startAction("feat-123", createDeps({
+      service: "report-server",
+      runTmux: runTmux as StartActionDeps["runTmux"],
+    }))).rejects.toThrow("A branch 'feat-123' não tem o Serviço report-server");
+    expect(runTmux.mock.calls.some(([command]) => command[1] === "new-session")).toBe(false);
+  });
+
   test("sem tmux, avisa e roda os serviços dentro das janelas", async () => {
     const spawnTerm = mock(async (_cwd: string, _env: Record<string, string>, _command: string): Promise<void> => {});
     const originalError = console.error;

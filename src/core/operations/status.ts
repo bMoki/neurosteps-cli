@@ -10,18 +10,24 @@ import {
   WORKTREES_DIR,
   listBranches as defaultListBranches,
   readWorkspaceEnv as defaultReadWorkspaceEnv,
+  resolveServiceLogFile,
   resolveServiceSession,
   type WorkspaceEnv,
 } from "../../lib/config";
 import { pathExists } from "../../lib/filesystem";
 import { listRunningContainers as defaultListRunningContainers } from "../../lib/docker";
 import { listListeningPorts as defaultListListeningPorts } from "../../lib/ports";
-import { type ServicePane, listServicePanes as defaultListServicePanes } from "../../lib/services";
+import {
+  type ServicePane,
+  lastErrorLine,
+  listServicePanes as defaultListServicePanes,
+} from "../../lib/services";
 import {
   getBranchFlagsMany as defaultGetBranchFlagsMany,
   type BranchFlagInfo,
 } from "../../lib/branch-flags";
 import type { NsContext } from "../context";
+import type { ServiceId } from "./prepare";
 import { naoEncontrado } from "../errors";
 
 export interface StatusInput {
@@ -34,6 +40,8 @@ export interface StatusInput {
  */
 export type ServiceState = "parado" | "iniciando" | "rodando" | "falhou";
 export type DbState = Extract<ServiceState, "parado" | "rodando">;
+
+export type ServiceKey = "backend" | "frontend" | "manager" | "reportServer";
 
 export interface BranchStatus {
   branch: string;
@@ -55,6 +63,11 @@ export interface BranchStatus {
     backend: string; frontend: string;
     manager?: string; reportServer?: string;
   };
+  sessions: {                         // nome da sessão tmux de cada Serviço; a sessão só existe depois de Iniciar
+    backend: string; frontend: string;
+    manager?: string; reportServer?: string;
+  };
+  errors: Partial<Record<ServiceKey, string>>;  // por que cada Serviço que Falhou falhou, tirado do log
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
@@ -80,6 +93,7 @@ export interface StatusDeps {
   listServicePanes: () => Promise<Map<string, ServicePane>>;
   getBranchFlagsMany: typeof defaultGetBranchFlagsMany;
   listBaseRepos: () => BaseRepo[];
+  readServiceError: (branch: string, id: ServiceId) => Promise<string | null>;
 }
 
 /**
@@ -101,6 +115,8 @@ export async function runStatus(
   const listServicePanes = deps.listServicePanes ?? defaultListServicePanes;
   const getBranchFlagsMany = deps.getBranchFlagsMany ?? defaultGetBranchFlagsMany;
   const listBaseRepos = deps.listBaseRepos ?? defaultListBaseRepos;
+  const readServiceError = deps.readServiceError
+    ?? ((branch: string, id: ServiceId) => lastErrorLine(resolveServiceLogFile(branch, id)));
 
   const names = input.branch ? [input.branch] : listBranches();
   const [listening, panes, runningContainers] = await Promise.all([
@@ -135,7 +151,7 @@ export async function runStatus(
 
   const flagsByBranch = await getBranchFlagsMany(found.map(({ branch }) => branch));
 
-  const branches = found.map(({ branch, env }): BranchStatus => {
+  const branches = await Promise.all(found.map(async ({ branch, env }): Promise<BranchStatus> => {
     const slug = env.BRANCH_SLUG || branch.toLowerCase();
     const backendAlias = `${slug}.api.${PRODUCT_NAME}`;
     const frontendAlias = `${slug}.web.${PRODUCT_NAME}`;
@@ -144,6 +160,19 @@ export async function runStatus(
     const flags = flagsByBranch.get(branch) ?? EMPTY_FLAGS;
     const stateOf = (id: string, port: number) =>
       deriveServiceState(listening.has(port), panes.get(resolveServiceSession(slug, id)));
+    const services: BranchStatus["services"] = {
+      db: runningContainers.includes(env.DB_CONTAINER) ? "rodando" : "parado",
+      backend: stateOf("backend", env.BACKEND_PORT),
+      frontend: stateOf("frontend", env.FRONTEND_PORT),
+      manager: env.MANAGER_PORT ? stateOf("manager", env.MANAGER_PORT) : null,
+      reportServer: env.REPORT_SERVER_PORT ? stateOf("report-server", env.REPORT_SERVER_PORT) : null,
+    };
+    const errors: BranchStatus["errors"] = {};
+    for (const [key, id] of SERVICE_KEYS) {
+      if (services[key] !== "falhou") continue;
+      const line = await readServiceError(branch, id);
+      if (line) errors[key] = line;
+    }
 
     return {
       branch,
@@ -157,25 +186,26 @@ export async function runStatus(
         manager: env.MANAGER_PORT,
         reportServer: env.REPORT_SERVER_PORT,
       },
-      services: {
-        db: runningContainers.includes(env.DB_CONTAINER) ? "rodando" : "parado",
-        backend: stateOf("backend", env.BACKEND_PORT),
-        frontend: stateOf("frontend", env.FRONTEND_PORT),
-        manager: env.MANAGER_PORT ? stateOf("manager", env.MANAGER_PORT) : null,
-        reportServer: env.REPORT_SERVER_PORT ? stateOf("report-server", env.REPORT_SERVER_PORT) : null,
-      },
+      services,
       aliases: {
         backend: backendAlias,
         frontend: frontendAlias,
         manager: env.MANAGER_PORT ? managerAlias : undefined,
         reportServer: env.REPORT_SERVER_PORT ? reportServerAlias : undefined,
       },
+      sessions: {
+        backend: resolveServiceSession(slug, "backend"),
+        frontend: resolveServiceSession(slug, "frontend"),
+        manager: env.MANAGER_PORT ? resolveServiceSession(slug, "manager") : undefined,
+        reportServer: env.REPORT_SERVER_PORT ? resolveServiceSession(slug, "report-server") : undefined,
+      },
+      errors,
       flags: flags.flags,
       stale: flags.stale,
       lastCommitAt: flags.lastCommitAt,
       lastCliUsedAt: flags.lastCliUsedAt,
     };
-  });
+  }));
 
   return { baseRepos: listBaseRepos(), branches };
 }
@@ -203,6 +233,13 @@ function defaultListBaseRepos(): BaseRepo[] {
     { repo: "parents", path: PARENTS_REPO },
   ].filter(({ path }) => pathExists(path));
 }
+
+const SERVICE_KEYS: Array<[ServiceKey, ServiceId]> = [
+  ["backend", "backend"],
+  ["frontend", "frontend"],
+  ["manager", "manager"],
+  ["reportServer", "report-server"],
+];
 
 const EMPTY_FLAGS: BranchFlagInfo = {
   flags: [],

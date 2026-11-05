@@ -23,7 +23,7 @@ import {
   setupBranchRuntime,
 } from "../../actions/branch-setup";
 import type { NsContext } from "../context";
-import { ferramentaExterna, isNsError } from "../errors";
+import { ferramentaExterna, isNsError, naoEncontrado } from "../errors";
 
 export type ServiceId = (typeof SERVICE_IDS)[number];
 
@@ -159,6 +159,19 @@ export async function runPrepare(
     depsInstalled,
     depsMissing,
   };
+}
+
+/**
+ * Os Serviços do Plano a subir: todos, ou só `service`. Pedir um Serviço que a branch
+ * não tem é nao-encontrado.
+ */
+export function servicesToStart(result: PrepareResult, service?: ServiceId): ServicePlan[] {
+  if (!service) return result.services;
+  const planned = result.services.filter(({ id }) => id === service);
+  if (planned.length === 0) {
+    throw naoEncontrado(`A branch '${result.branch}' não tem o Serviço ${service}`);
+  }
+  return planned;
 }
 
 function depsSpecs(branch: string, includeManager: boolean, includeReportServer: boolean): DepsSpec[] {

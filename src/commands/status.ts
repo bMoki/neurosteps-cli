@@ -6,6 +6,7 @@ import {
   type BranchStatus,
   type NsError,
   type ServiceId,
+  type ServiceKey,
   type ServiceState,
   createSilentContext,
   isNsError,
@@ -258,8 +259,6 @@ export function renderBranchDetail(status: BranchStatus, plain = false): void {
     warn(`Flag ${STALE_BRANCH_FLAG}: sem commit e sem uso da CLI há mais de 7 dias`);
   }
 }
-
-type ServiceKey = Exclude<keyof BranchStatus["services"], "db">;
 
 const DETAIL_SERVICES: Array<{ key: ServiceKey; id: ServiceId; label: string }> = [
   { key: "backend", id: "backend", label: "Backend" },
