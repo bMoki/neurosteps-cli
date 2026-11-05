@@ -43,6 +43,14 @@ export function createTerminalContext(
   };
 }
 
+/** Para o spinner antes de o erro subir, para o tratamento global imprimir a mensagem e a dica. */
+export function stopSpinnerOnError(spinner: Ora): (error: unknown) => never {
+  return (error) => {
+    spinner.stop();
+    throw error;
+  };
+}
+
 function isInteractiveInput(): boolean {
   return !isNoInputEnabled() && Boolean(process.stdin.isTTY);
 }

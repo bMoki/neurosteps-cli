@@ -1,8 +1,17 @@
 import { describe, test, expect, mock } from "bun:test";
-import { newAction } from "../../actions/new";
+import { type AddRepoInput, type NsContext, type NsProgressEvent, type OptionalRepo, createSilentContext, naoEncontrado, runNew } from "../../core";
 import { createShellResult } from "../setup";
 
-describe("newAction", () => {
+const prepared = {
+  branch: "feat-123",
+  ports: { db: 5438, backend: 8084, frontend: 3015 },
+  urls: { backend: "", frontend: "" },
+  services: [],
+  depsInstalled: [],
+  depsMissing: [],
+};
+
+describe("runNew", () => {
   const createMocks = () => ({
     branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(branch === "master")),
     fetch: mock((repo: string) => Promise.resolve()),
@@ -17,7 +26,12 @@ describe("newAction", () => {
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
     markTouched: mock(() => Promise.resolve()),
     hooks: mock(() => Promise.resolve()),
+    addRepo: mock((input: AddRepoInput, _ctx: NsContext) => Promise.resolve({ branch: input.branch, repo: input.repo, path: "" })),
+    prepare: mock(() => Promise.resolve(prepared)),
   });
+
+  const run = (mocks: ReturnType<typeof createMocks>, repos: OptionalRepo[] = [], baseBranch = "master") =>
+    runNew({ branch: "feat-123", baseBranch, repos, installMissingDeps: "never" }, createSilentContext(), mocks);
 
   test("creates new branch without manager", async () => {
     const mocks = createMocks();
@@ -43,7 +57,7 @@ describe("newAction", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.allocate).toHaveBeenCalledWith(false);
       expect(mocks.worktree).toHaveBeenCalledTimes(3);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
@@ -64,7 +78,7 @@ describe("newAction", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.copyTpl).toHaveBeenCalledWith(
         expect.stringContaining("templates/idea/workspace.xml"),
         expect.stringContaining(".idea/workspace.xml"),
@@ -87,7 +101,7 @@ describe("newAction", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.hooks).toHaveBeenCalledWith(
         "new:after",
         expect.objectContaining({
@@ -134,7 +148,7 @@ describe("newAction", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", true, mocks);
+      await run(mocks, ["manager"]);
       expect(mocks.allocate).toHaveBeenCalledWith(true);
       expect(mocks.worktree).toHaveBeenCalledTimes(4);
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
@@ -156,7 +170,7 @@ describe("newAction", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", true, mocks);
+      await run(mocks, ["manager"]);
       expect(mocks.hooks).toHaveBeenCalledWith(
         "new:after",
         expect.objectContaining({
@@ -173,7 +187,7 @@ describe("newAction", () => {
     }
   });
 
-  test("exits when manager repo not found", async () => {
+  test("fails when manager repo not found", async () => {
     const mocks = createMocks();
     const originalFile = Bun.file;
     // MANAGER_REPO = ~/Developer/neurosteps-manager (from env-setup.ts NS_MANAGER_REPO_NAME)
@@ -183,17 +197,18 @@ describe("newAction", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", true, mocks);
+      await run(mocks, ["manager"]);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
       expect((e as Error).message).toContain("não encontrado");
+      expect(e).toMatchObject({ category: "pre-condicao" });
     } finally {
       Bun.file = originalFile;
     }
   });
 
-  test("exits when repo not found", async () => {
+  test("fails when repo not found", async () => {
     const mocks = createMocks();
     const originalFile = Bun.file;
     // BACKEND_REPO = ~/Developer/scalemed-backend (from env-setup.ts NS_BACKEND_REPO_NAME)
@@ -203,7 +218,7 @@ describe("newAction", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
@@ -211,5 +226,116 @@ describe("newAction", () => {
     } finally {
       Bun.file = originalFile;
     }
+  });
+
+  const withWorkspaceFiles = async (body: () => Promise<void>) => {
+    const originalFile = Bun.file;
+    Bun.file = mock((path: string) => ({
+      exists: () => Promise.resolve(path.includes(".git") || !path.includes("worktrees") || path.includes("templates")),
+      text: () => Promise.resolve(""),
+    })) as any;
+    try {
+      await body();
+    } finally {
+      Bun.file = originalFile;
+    }
+  };
+
+  test("includes the other optional repos after the branch exists, then prepares it", async () => {
+    const mocks = createMocks();
+    const steps: string[] = [];
+    const ctx = { ...createSilentContext(), emit: (event: NsProgressEvent) => { steps.push(event.step); } };
+    await withWorkspaceFiles(async () => {
+      const result = await runNew(
+        { branch: "feat-123", repos: ["manager", "report-server", "parents"], installMissingDeps: "never" },
+        ctx,
+        mocks,
+      );
+
+      expect(mocks.addRepo.mock.calls.map(([input]) => input)).toEqual([
+        { branch: "feat-123", repo: "report-server" },
+        { branch: "feat-123", repo: "parents" },
+      ]);
+      expect(mocks.prepare).toHaveBeenCalledWith({ branch: "feat-123", installMissingDeps: "never" }, ctx);
+      expect(result.repos).toEqual(["manager", "report-server", "parents"]);
+      expect(result.missingRepos).toEqual([]);
+      expect(result.prepared).toBe(prepared);
+    });
+    expect(steps.indexOf("new:add:report-server")).toBeGreaterThan(steps.indexOf("new:hooks"));
+    expect(steps).toContain("new:add:parents");
+  });
+
+  test("keeps and prepares the branch when an optional repo fails, naming the repo", async () => {
+    const mocks = createMocks();
+    mocks.addRepo = mock(({ repo }: { repo: string }) => repo === "report-server"
+      ? Promise.reject(naoEncontrado("Branch base 'origin/master' não existe no report-server"))
+      : Promise.resolve({ branch: "feat-123", repo: "parents" as const, path: "" })) as any;
+    await withWorkspaceFiles(async () => {
+      const result = await run(mocks, ["report-server", "parents"]);
+
+      expect(result.repos).toEqual(["parents"]);
+      expect(result.missingRepos).toEqual([{
+        repo: "report-server",
+        category: "nao-encontrado",
+        message: "Branch base 'origin/master' não existe no report-server",
+      }]);
+      expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
+      expect(mocks.prepare).toHaveBeenCalled();
+    });
+  });
+
+  test("reports a failing tool in an optional repo as ferramenta-externa", async () => {
+    const mocks = createMocks();
+    mocks.addRepo = mock(() => Promise.reject(new Error("fatal: could not read from remote repository"))) as any;
+    await withWorkspaceFiles(async () => {
+      const result = await run(mocks, ["parents"]);
+
+      expect(result.missingRepos).toEqual([{
+        repo: "parents",
+        category: "ferramenta-externa",
+        message: "fatal: could not read from remote repository",
+      }]);
+    });
+  });
+
+  test("reports a failing git while creating the branch as ferramenta-externa", async () => {
+    const mocks = createMocks();
+    mocks.worktree = mock(() => Promise.reject(new Error("fatal: 'feat-123' is already checked out")));
+    await withWorkspaceFiles(async () => {
+      await expect(run(mocks)).rejects.toMatchObject({ category: "ferramenta-externa", message: "fatal: 'feat-123' is already checked out" });
+      expect(mocks.prepare).not.toHaveBeenCalled();
+    });
+  });
+
+  test("asks for each optional repo once and carries the paths and port of the included repos", async () => {
+    const mocks = createMocks();
+    mocks.addRepo = mock((input: AddRepoInput, _ctx: NsContext) => Promise.resolve({
+      branch: input.branch,
+      repo: input.repo,
+      path: `/w/feat-123/${input.repo}`,
+      ...(input.repo === "report-server" ? { port: 3031 } : {}),
+    }));
+    await withWorkspaceFiles(async () => {
+      const result = await run(mocks, ["parents", "report-server", "parents"]);
+
+      expect(mocks.addRepo).toHaveBeenCalledTimes(2);
+      expect(result.repos).toEqual(["parents", "report-server"]);
+      expect(result.paths.parents).toBe("/w/feat-123/parents");
+      expect(result.paths.reportServer).toBe("/w/feat-123/report-server");
+      expect(result.ports.reportServer).toBe(3031);
+    });
+  });
+
+  test("a failing prepare keeps its category and says the branch was created", async () => {
+    const mocks = createMocks();
+    mocks.prepare = mock(() => Promise.reject(new Error("Cannot connect to the Docker daemon")));
+    await withWorkspaceFiles(async () => {
+      await expect(run(mocks)).rejects.toMatchObject({
+        category: "ferramenta-externa",
+        message: "Cannot connect to the Docker daemon",
+        hint: "A branch foi criada. Para preparar de novo: ns prepare feat-123",
+      });
+      expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
+    });
   });
 });

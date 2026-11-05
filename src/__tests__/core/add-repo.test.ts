@@ -1,10 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
-import { addDocsAction, addManagerAction, addParentsAction } from "../../actions/add";
+import { createSilentContext, runAddRepo } from "../../core";
 import { createShellResult } from "../setup";
 
-class ProcessExit extends Error {}
-
-describe("addManagerAction", () => {
+describe("runAddRepo manager", () => {
   const createDeps = () => ({
     readEnv: mock(() => Promise.resolve({
       BRANCH_NAME: "NS-927",
@@ -25,7 +23,7 @@ describe("addManagerAction", () => {
     trackBranch: mock(() => Promise.resolve()),
     localBranch: mock(() => Promise.resolve()),
     worktree: mock(() => Promise.resolve()),
-    allocateManagerPort: mock(() => 3020),
+    allocatePort: mock(() => 3020),
     shell: mock((command: string[]) => Promise.resolve(createShellResult(command))),
     exists: mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git")),
     ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], updatedTemplates: [], preservedTemplates: [] })),
@@ -37,7 +35,7 @@ describe("addManagerAction", () => {
   test("adds manager worktree and writes manager config", async () => {
     const deps = createDeps();
 
-    await addManagerAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "manager" }, createSilentContext(), deps);
 
     expect(deps.fetch).toHaveBeenCalled();
     expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/master");
@@ -55,7 +53,7 @@ describe("addManagerAction", () => {
     deps.branchExistsOrigin = mock(() => Promise.resolve(true));
     deps.localExists = mock((repo: string, branch: string): boolean => false);
 
-    await addManagerAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "manager" }, createSilentContext(), deps);
 
     expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
     expect(deps.localBranch).not.toHaveBeenCalled();
@@ -65,7 +63,7 @@ describe("addManagerAction", () => {
     const deps = createDeps();
     deps.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(branch === "develop"));
 
-    await addManagerAction("NS-927", { base: "develop" }, deps);
+    await runAddRepo({ branch: "NS-927", repo: "manager", base: "develop" }, createSilentContext(), deps);
 
     expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/develop");
   });
@@ -73,30 +71,22 @@ describe("addManagerAction", () => {
   test("uses requested manager port", async () => {
     const deps = createDeps();
 
-    await addManagerAction("NS-927", { port: "3033" }, deps);
+    await runAddRepo({ branch: "NS-927", repo: "manager", port: 3033 }, createSilentContext(), deps);
 
-    expect(deps.allocateManagerPort).not.toHaveBeenCalled();
+    expect(deps.allocatePort).not.toHaveBeenCalled();
     expect(deps.writeText).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('MANAGER_PORT="3033"'));
   });
 
-  test("exits when manager already exists", async () => {
+  test("fails with conflito when manager already exists", async () => {
     const deps = createDeps();
     deps.exists = mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith("/manager"));
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
 
-    try {
-      await addManagerAction("NS-927", {}, deps);
-      expect(false).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
-    } finally {
-      process.exit = originalExit;
-    }
+    await expect(runAddRepo({ branch: "NS-927", repo: "manager" }, createSilentContext(), deps)).rejects.toMatchObject({ category: "conflito" });
+    expect(deps.worktree).not.toHaveBeenCalled();
   });
 });
 
-describe("addDocsAction", () => {
+describe("runAddRepo docs", () => {
   const createDeps = () => ({
     readEnv: mock(() => Promise.resolve({
       BRANCH_NAME: "NS-927",
@@ -120,36 +110,19 @@ describe("addDocsAction", () => {
     shell: mock((command: string[]) => Promise.resolve(createShellResult(command))),
     exists: mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith(".code-workspace")),
     ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], updatedTemplates: [], preservedTemplates: [] })),
+    readText: mock(() => Promise.resolve('{"folders":[{"name":"backend","path":"backend"}]}')),
+    writeText: mock(() => Promise.resolve()),
   });
-
-  async function withWorkspaceFile(run: (write: ReturnType<typeof mock>) => Promise<void>): Promise<void> {
-    const originalFile = Bun.file;
-    const originalWrite = Bun.write;
-    const write = mock(() => Promise.resolve(0));
-    Bun.file = mock((path: string) => ({
-      exists: () => Promise.resolve(path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith(".code-workspace")),
-      text: () => Promise.resolve('{"folders":[{"name":"backend","path":"backend"}]}'),
-    })) as any;
-    Bun.write = write as any;
-    try {
-      await run(write);
-    } finally {
-      Bun.file = originalFile;
-      Bun.write = originalWrite;
-    }
-  }
 
   test("adds docs worktree and updates code workspace", async () => {
     const deps = createDeps();
 
-    await withWorkspaceFile(async (write) => {
-      await addDocsAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "docs" }, createSilentContext(), deps);
 
-      expect(deps.fetch).toHaveBeenCalled();
-      expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/master");
-      expect(deps.worktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/docs"), "NS-927");
-      expect(write).toHaveBeenCalledWith(expect.stringContaining("NS-927.code-workspace"), expect.stringContaining('"path": "docs"'));
-    });
+    expect(deps.fetch).toHaveBeenCalled();
+    expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/master");
+    expect(deps.worktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/docs"), "NS-927");
+    expect(deps.writeText).toHaveBeenCalledWith(expect.stringContaining("NS-927.code-workspace"), expect.stringContaining('"path": "docs"'));
   });
 
   test("tracks remote docs branch when it exists", async () => {
@@ -157,32 +130,22 @@ describe("addDocsAction", () => {
     deps.branchExistsOrigin = mock(() => Promise.resolve(true));
     deps.localExists = mock((repo: string, branch: string): boolean => false);
 
-    await withWorkspaceFile(async () => {
-      await addDocsAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "docs" }, createSilentContext(), deps);
 
-      expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
-      expect(deps.localBranch).not.toHaveBeenCalled();
-    });
+    expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
+    expect(deps.localBranch).not.toHaveBeenCalled();
   });
 
-  test("exits when docs already exists", async () => {
+  test("fails with conflito when docs already exists", async () => {
     const deps = createDeps();
     deps.exists = mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith("/docs"));
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
 
-    try {
-      await addDocsAction("NS-927", {}, deps);
-      expect(false).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
-    } finally {
-      process.exit = originalExit;
-    }
+    await expect(runAddRepo({ branch: "NS-927", repo: "docs" }, createSilentContext(), deps)).rejects.toMatchObject({ category: "conflito" });
+    expect(deps.worktree).not.toHaveBeenCalled();
   });
 });
 
-describe("addParentsAction", () => {
+describe("runAddRepo parents", () => {
   const createDeps = () => ({
     readEnv: mock(() => Promise.resolve({
       BRANCH_NAME: "NS-927",
@@ -206,36 +169,19 @@ describe("addParentsAction", () => {
     shell: mock((command: string[]) => Promise.resolve(createShellResult(command))),
     exists: mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith(".code-workspace")),
     ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], updatedTemplates: [], preservedTemplates: [] })),
+    readText: mock(() => Promise.resolve('{"folders":[{"name":"backend","path":"backend"}]}')),
+    writeText: mock(() => Promise.resolve()),
   });
-
-  async function withWorkspaceFile(run: (write: ReturnType<typeof mock>) => Promise<void>): Promise<void> {
-    const originalFile = Bun.file;
-    const originalWrite = Bun.write;
-    const write = mock(() => Promise.resolve(0));
-    Bun.file = mock((path: string) => ({
-      exists: () => Promise.resolve(path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith(".code-workspace")),
-      text: () => Promise.resolve('{"folders":[{"name":"backend","path":"backend"}]}'),
-    })) as any;
-    Bun.write = write as any;
-    try {
-      await run(write);
-    } finally {
-      Bun.file = originalFile;
-      Bun.write = originalWrite;
-    }
-  }
 
   test("adds parents worktree and updates code workspace", async () => {
     const deps = createDeps();
 
-    await withWorkspaceFile(async (write) => {
-      await addParentsAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps);
 
-      expect(deps.fetch).toHaveBeenCalled();
-      expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/main");
-      expect(deps.worktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/parents"), "NS-927");
-      expect(write).toHaveBeenCalledWith(expect.stringContaining("NS-927.code-workspace"), expect.stringContaining('"path": "parents"'));
-    });
+    expect(deps.fetch).toHaveBeenCalled();
+    expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/main");
+    expect(deps.worktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/parents"), "NS-927");
+    expect(deps.writeText).toHaveBeenCalledWith(expect.stringContaining("NS-927.code-workspace"), expect.stringContaining('"path": "parents"'));
   });
 
   test("tracks remote parents branch when it exists", async () => {
@@ -243,27 +189,68 @@ describe("addParentsAction", () => {
     deps.branchExistsOrigin = mock(() => Promise.resolve(true));
     deps.localExists = mock((repo: string, branch: string): boolean => false);
 
-    await withWorkspaceFile(async () => {
-      await addParentsAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps);
 
-      expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
-      expect(deps.localBranch).not.toHaveBeenCalled();
-    });
+    expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
+    expect(deps.localBranch).not.toHaveBeenCalled();
   });
 
-  test("exits when parents already exists", async () => {
+  test("fails with conflito when parents already exists", async () => {
     const deps = createDeps();
     deps.exists = mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith("/parents"));
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
 
-    try {
-      await addParentsAction("NS-927", {}, deps);
-      expect(false).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
-    } finally {
-      process.exit = originalExit;
-    }
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps)).rejects.toMatchObject({ category: "conflito" });
+    expect(deps.worktree).not.toHaveBeenCalled();
+  });
+
+
+  test("fails with nao-encontrado when the workspace branch does not exist", async () => {
+    const deps = createDeps();
+    deps.readEnv = mock(() => Promise.resolve(null)) as any;
+
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps))
+      .rejects.toMatchObject({ category: "nao-encontrado", message: "Worktree 'NS-927' não encontrada" });
+  });
+
+  test("fails with pre-condicao when the repo is not cloned", async () => {
+    const deps = createDeps();
+    deps.exists = mock((path: string) => path.endsWith(".workspace.env"));
+
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps))
+      .rejects.toMatchObject({ category: "pre-condicao" });
+  });
+
+  test("fails with nao-encontrado when the base is missing, and a retry works once it exists", async () => {
+    const deps = createDeps();
+    let baseExists = false;
+    deps.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(baseExists && branch === "main"));
+
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps))
+      .rejects.toMatchObject({ category: "nao-encontrado", message: "Branch base 'origin/main' não existe no parents" });
+    expect(deps.worktree).not.toHaveBeenCalled();
+
+    baseExists = true;
+    const result = await runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps);
+
+    expect(result.path).toEndWith("/NS-927/parents");
+    expect(deps.worktree).toHaveBeenCalledTimes(1);
+  });
+
+  test("reports a failing git as ferramenta-externa", async () => {
+    const deps = createDeps();
+    deps.fetch = mock(() => Promise.reject(new Error("fatal: unable to access remote")));
+
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps))
+      .rejects.toMatchObject({ category: "ferramenta-externa", message: "fatal: unable to access remote" });
+  });
+
+  test("undoes the worktree when a later step fails, so a retry is not a conflict", async () => {
+    const deps = { ...createDeps(), removeWorktree: mock(() => Promise.resolve()) };
+    deps.writeText = mock(() => Promise.reject(new Error("EACCES: permission denied")));
+
+    await expect(runAddRepo({ branch: "NS-927", repo: "parents" }, createSilentContext(), deps))
+      .rejects.toMatchObject({ category: "ferramenta-externa", message: "EACCES: permission denied" });
+
+    expect(deps.removeWorktree).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("/NS-927/parents"), { force: true });
   });
 });

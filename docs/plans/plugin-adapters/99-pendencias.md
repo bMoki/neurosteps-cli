@@ -22,7 +22,7 @@ Com serviços escrevendo em `~/.local/state/ns/<branch>/<servico>.log`, os arqui
 Os testes cobrem o protocolo em processo, com `runStatus` injetado, e o processo real só no caminho de erro. Rodar `status` pelo binário leria o workspace real da máquina, porque a pasta de worktrees vem da config de quem roda. Entra depois que a suíte tiver uma pasta temporária própria (ticket 20 do Thalamus, "Testes do cli isolados do workspace real").
 
 **Cancelar uma requisição em andamento.**
-O protocolo não tem mensagem de cancelamento: uma operação iniciada só termina com `result` ou `error`. Nenhuma operação servida hoje precisa (o `status` é rápido). Passa a importar quando `new` ou `start` forem servidos e o cliente quiser desistir no meio; exige o núcleo aceitar um sinal de cancelamento.
+O protocolo não tem mensagem de cancelamento: uma operação iniciada só termina com `result` ou `error`. Nenhuma operação servida hoje precisa (o `status` é rápido). `new` e `start` já são servidos e são longos: um cliente que desiste no meio hoje só pode encerrar o processo. Exige o núcleo aceitar um sinal de cancelamento.
 
 **`listBranches` devolve arquivos soltos como branches.**
 `ls -1` da pasta de worktrees inclui arquivos como `AGENTS.md` e `CLAUDE.md`. O `status` os ignora por não terem `.workspace.env`, mas eles aparecem nos eventos de progresso ("Lendo status de AGENTS.md...") e inflam o `total`. Listar só diretórios resolve.

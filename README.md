@@ -88,13 +88,7 @@ Isso cria uma workspace em:
 ~/Developer/worktrees/minha-branch/
 ```
 
-Ela terá `backend`, `frontend`, `manager`, `.workspace.env`, `docker-compose.yml` e arquivos de IDE.
-
-Prepare DB e aliases Portless:
-
-```bash
-ns prepare minha-branch
-```
+Ela terá `backend`, `frontend`, `manager`, `.workspace.env`, `docker-compose.yml` e arquivos de IDE. O `ns new` já deixa a branch preparada (banco no ar, aliases Portless e dependências), sem subir os serviços. Para preparar de novo depois, use `ns prepare minha-branch`.
 
 Abra no IDE configurado:
 
@@ -131,6 +125,14 @@ ns close minha-branch
 ```bash
 ns new minha-branch --no-manager
 ```
+
+### Criar uma branch com report-server e parents
+
+```bash
+ns new minha-branch --with report-server,parents
+```
+
+Cada Repo opcional usa a sua base padrão (`master` no report-server, `main` no parents), não a base passada ao `ns new`. Se um deles falhar depois de a workspace existir, ela é mantida e preparada, e o `ns` mostra o `ns add` que repete só aquele Repo.
 
 ### Adicionar manager depois
 
@@ -252,9 +254,10 @@ ns rm minha-branch --force
 
 | Comando | O que faz | Observação |
 | --- | --- | --- |
-| `ns new <branch>` | Cria worktrees configuradas para backend, frontend e manager. | Usa `master` como base. |
+| `ns new <branch>` | Cria e prepara worktrees configuradas para backend, frontend, docs e manager. | Usa `master` como base. Não sobe os serviços. |
 | `ns new <branch> <base>` | Cria worktrees a partir de `origin/<base>`. | A base precisa existir no origin dos repositórios usados. |
 | `ns new <branch> --no-manager` | Cria workspace sem manager. | Manager pode ser adicionado depois. |
+| `ns new <branch> --with report-server,parents` | Cria workspace com os Repos opcionais pedidos. | Cada um na sua base padrão. Falha num deles mantém a workspace. |
 | `ns add manager <branch>` | Adiciona manager a uma workspace existente. | Usa `master` como base por padrão. |
 | `ns add manager <branch> --base <base>` | Adiciona manager a partir de `origin/<base>`. | A base precisa existir no origin do repositório manager. |
 | `ns add manager <branch> --port <port>` | Adiciona manager com porta específica. | Atualiza `.workspace.env`. |
@@ -404,6 +407,8 @@ O `ns init` ajuda a montar esse arquivo. Ele pergunta o diretório base, detecta
 `ns new <branch>` valida que os repositórios base existem, valida que `origin/<base>` existe, busca origin, cria ou reaproveita branches locais e cria worktrees em `NS_BASE_DIR/worktrees/<branch>`.
 
 Depois disso, ele aloca portas, gera `.workspace.env`, cria `docker-compose.yml`, aplica templates de backend/frontend/manager, cria arquivos de VS Code e IntelliJ e tenta copiar o volume `NS_SEED_VOLUME` para o volume da branch.
+
+Em seguida inclui os Repos pedidos com `--with` (como o `ns add` faria) e prepara a branch como o `ns prepare`. Nenhum serviço é iniciado.
 
 ### Onde cada coisa fica
 

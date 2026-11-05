@@ -1,10 +1,8 @@
 import { describe, expect, mock, test } from "bun:test";
-import { addReportServerAction } from "../../actions/add";
+import { createSilentContext, runAddRepo } from "../../core";
 import { createShellResult } from "../setup";
 
-class ProcessExit extends Error {}
-
-describe("addReportServerAction", () => {
+describe("runAddRepo report-server", () => {
   const createDeps = () => ({
     readEnv: mock(() => Promise.resolve({
       BRANCH_NAME: "NS-927",
@@ -25,7 +23,7 @@ describe("addReportServerAction", () => {
     trackBranch: mock(() => Promise.resolve()),
     localBranch: mock(() => Promise.resolve()),
     worktree: mock(() => Promise.resolve()),
-    allocateReportServerPort: mock(() => 3030),
+    allocatePort: mock(() => 3030),
     shell: mock((command: string[]) => Promise.resolve(createShellResult(command))),
     exists: mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith("application-dev.properties")),
     ensureBootstrap: mock(() => Promise.resolve({ createdDirs: [], installedTemplates: [], updatedTemplates: [], preservedTemplates: [] })),
@@ -41,7 +39,7 @@ describe("addReportServerAction", () => {
   test("adds report-server worktree and writes report-server config", async () => {
     const deps = createDeps();
 
-    await addReportServerAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "report-server" }, createSilentContext(), deps);
 
     expect(deps.fetch).toHaveBeenCalled();
     expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/master");
@@ -67,7 +65,7 @@ describe("addReportServerAction", () => {
     deps.branchExistsOrigin = mock(() => Promise.resolve(true));
     deps.localExists = mock((repo: string, branch: string): boolean => false);
 
-    await addReportServerAction("NS-927", {}, deps);
+    await runAddRepo({ branch: "NS-927", repo: "report-server" }, createSilentContext(), deps);
 
     expect(deps.trackBranch).toHaveBeenCalledWith(expect.any(String), "NS-927");
     expect(deps.localBranch).not.toHaveBeenCalled();
@@ -77,7 +75,7 @@ describe("addReportServerAction", () => {
     const deps = createDeps();
     deps.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(branch === "develop"));
 
-    await addReportServerAction("NS-927", { base: "develop" }, deps);
+    await runAddRepo({ branch: "NS-927", repo: "report-server", base: "develop" }, createSilentContext(), deps);
 
     expect(deps.localBranch).toHaveBeenCalledWith(expect.any(String), "NS-927", "origin/develop");
   });
@@ -85,25 +83,17 @@ describe("addReportServerAction", () => {
   test("uses requested report-server port", async () => {
     const deps = createDeps();
 
-    await addReportServerAction("NS-927", { port: "3045" }, deps);
+    await runAddRepo({ branch: "NS-927", repo: "report-server", port: 3045 }, createSilentContext(), deps);
 
-    expect(deps.allocateReportServerPort).not.toHaveBeenCalled();
+    expect(deps.allocatePort).not.toHaveBeenCalled();
     expect(deps.writeText).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('REPORT_SERVER_PORT="3045"'));
   });
 
-  test("exits when report-server already exists", async () => {
+  test("fails with conflito when report-server already exists", async () => {
     const deps = createDeps();
     deps.exists = mock((path: string) => path.endsWith(".workspace.env") || path.endsWith(".git") || path.endsWith("/report-server"));
-    const originalExit = process.exit;
-    process.exit = ((code: number) => { throw new ProcessExit(String(code)); }) as any;
 
-    try {
-      await addReportServerAction("NS-927", {}, deps);
-      expect(false).toBe(true);
-    } catch (e) {
-      expect(e).toBeInstanceOf(ProcessExit);
-    } finally {
-      process.exit = originalExit;
-    }
+    await expect(runAddRepo({ branch: "NS-927", repo: "report-server" }, createSilentContext(), deps)).rejects.toMatchObject({ category: "conflito" });
+    expect(deps.worktree).not.toHaveBeenCalled();
   });
 });

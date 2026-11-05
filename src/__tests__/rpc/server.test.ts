@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -224,6 +224,58 @@ describe("ns rpc: protocolo", () => {
     expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat" } });
   });
 
+  test("new repassa os Repos opcionais, o progresso e o resultado; sem repos inclui o manager", async () => {
+    const calls: unknown[] = [];
+    const created = { branch: "feat", repos: ["manager"], missingRepos: [] };
+    const { send, settle, out } = startServer(createRpcOperations({
+      runNew: async (input, ctx) => {
+        calls.push(input);
+        ctx.emit({ step: "new:add:parents", label: "Incluindo parents..." });
+        return created as never;
+      },
+    }));
+
+    send({ type: "op", id: "r1", op: "new", input: { branch: "feat", repos: ["report-server", "parents"], installMissingDeps: "never" } });
+    send({ type: "op", id: "r2", op: "new", input: { branch: "feat", baseBranch: "develop" } });
+    await settle();
+
+    expect(calls).toEqual([
+      { branch: "feat", repos: ["report-server", "parents"], installMissingDeps: "never" },
+      { branch: "feat", baseBranch: "develop", repos: ["manager"], installMissingDeps: "ask" },
+    ]);
+    expect(out).toContainEqual({ type: "event", id: "r1", event: { step: "new:add:parents", label: "Incluindo parents..." } });
+    expect(out).toContainEqual({ type: "result", id: "r1", result: created });
+  });
+
+  test("new com Repo opcional desconhecido é recusado e conflito de nome chega com a categoria", async () => {
+    const { send, settle, messagesOf } = startServer(createRpcOperations({
+      runNew: async () => { throw conflito("Worktree já existe: /w/feat", "Para recriar, remova antes com: ns rm feat"); },
+    }));
+
+    send({ type: "op", id: "r1", op: "new", input: { branch: "feat", repos: ["docs"] } });
+    send({ type: "op", id: "r2", op: "new", input: { branch: "feat" } });
+    await settle();
+
+    expect(messagesOf("r1")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+    expect(messagesOf("r2")[0]).toMatchObject({
+      type: "error",
+      error: { category: "conflito", message: "Worktree já existe: /w/feat", hint: "Para recriar, remova antes com: ns rm feat" },
+    });
+  });
+
+  test("addRepo inclui de novo um Repo numa branch que já existe", async () => {
+    const calls: unknown[] = [];
+    const { send, settle, out } = startServer(createRpcOperations({
+      runAddRepo: async (input) => { calls.push(input); return { branch: input.branch, repo: input.repo, path: "/w/feat/parents" }; },
+    }));
+
+    send({ type: "op", id: "r1", op: "addRepo", input: { branch: "feat", repo: "parents" } });
+    await settle();
+
+    expect(calls).toEqual([{ branch: "feat", repo: "parents" }]);
+    expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat", repo: "parents", path: "/w/feat/parents" } });
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -251,8 +303,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo." } },
     ]);
   });
 

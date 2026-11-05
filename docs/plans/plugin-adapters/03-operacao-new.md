@@ -100,3 +100,13 @@ O texto impresso deve ficar **idêntico** ao atual. É o critério de aceite mai
 - `ns new <branch> <base>` produz a mesma saída e os mesmos arquivos de antes.
 - Os três erros da tabela acima continuam com exit code 1 e a mesma mensagem.
 - Hook `intellij:configure-db` continua rodando (checar `dataSources.xml` na worktree criada).
+
+## Depois da migração: Repos opcionais e Preparar
+
+A migração foi além da troca de casca, porque o Thalamus precisa criar a branch pronta para uso:
+
+- `NewInput` recebe `repos` (manager, report-server, parents) no lugar de `withManager`. O manager continua sendo criado com a branch, na base do `new`. Report-server e parents entram depois que a branch existe, pela operação `addRepo` (que também serve o `ns add`), cada um na sua base padrão.
+- Repo opcional que falha não desfaz a branch: vai para `missingRepos` com a categoria, e repetir é chamar `addRepo` só com ele. Se a falha vier depois de a worktree do Repo existir, `addRepo` a remove, para a repetição não esbarrar em "já existe".
+- Ao final, `runNew` chama `runPrepare`. Falha ao preparar sobe com a categoria e uma dica de que a branch foi criada.
+- A saída do `ns new` mudou: "criada e preparada", a seção "Repos que faltaram" com o `ns add` de cada um, e os próximos passos sem o `ns prepare`.
+- `NewResult` não traz `db`, `dataSourceUuid` nem `backendDebug`: nenhum cliente usa. `lib/hooks.ts` não foi movido para o núcleo.

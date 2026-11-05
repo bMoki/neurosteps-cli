@@ -49,6 +49,12 @@ export function cancelado(message: string, details?: NsErrorDetails): NsError {
   return new NsError("cancelado", message, toOptions(details));
 }
 
+/** Falha de git, docker ou arquivo vira `ferramenta-externa`; erro do núcleo passa como está. */
+export function asNsError(error: unknown): NsError {
+  if (isNsError(error)) return error;
+  return ferramentaExterna(error instanceof Error ? error.message : String(error), { cause: error });
+}
+
 function toOptions(details: NsErrorDetails = {}): NsErrorOptions {
   return typeof details === "string" ? { hint: details } : details;
 }

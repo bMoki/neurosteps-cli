@@ -1,11 +1,14 @@
 import { z } from "zod";
 import {
+  OPTIONAL_REPOS,
   type NsContext,
   type PrepareInput,
   type PrepareResult,
   type ServiceId,
   ferramentaExterna,
   preCondicao,
+  runAddRepo as defaultRunAddRepo,
+  runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
   runStatus as defaultRunStatus,
   runStop as defaultRunStop,
@@ -43,6 +46,8 @@ export interface RpcOperationDeps {
   runStatus: typeof defaultRunStatus;
   runPrepare: typeof defaultRunPrepare;
   runStop: typeof defaultRunStop;
+  runNew: typeof defaultRunNew;
+  runAddRepo: typeof defaultRunAddRepo;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -52,13 +57,16 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runStatus = deps.runStatus ?? defaultRunStatus;
   const runPrepare = deps.runPrepare ?? defaultRunPrepare;
   const runStop = deps.runStop ?? defaultRunStop;
+  const runNew = deps.runNew ?? defaultRunNew;
+  const runAddRepo = deps.runAddRepo ?? defaultRunAddRepo;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
+  const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
   const prepareInput = z.strictObject({
     branch: z.string().min(1),
     withManager: z.boolean().optional(),
     withReportServer: z.boolean().optional(),
-    installMissingDeps: z.enum(["always", "ask", "never"]).default("ask"),
+    installMissingDeps,
   });
   const service = z.enum(SERVICE_IDS).optional();
 
@@ -75,6 +83,19 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     stop: withInput(
       z.strictObject({ branch: z.string().min(1), service }),
       (input, ctx) => runStop(input, ctx),
+    ),
+    new: withInput(
+      z.strictObject({
+        branch: z.string().min(1),
+        baseBranch: z.string().min(1).optional(),
+        repos: z.array(z.enum(OPTIONAL_REPOS)).default(["manager"]),
+        installMissingDeps,
+      }),
+      (input, ctx) => runNew(input, ctx),
+    ),
+    addRepo: withInput(
+      z.strictObject({ branch: z.string().min(1), repo: z.enum(OPTIONAL_REPOS), base: z.string().min(1).optional() }),
+      (input, ctx) => runAddRepo(input, ctx),
     ),
   };
 }

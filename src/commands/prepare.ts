@@ -49,11 +49,15 @@ export async function runPrepareInTerminal(
     throw error;
   });
 
+  warnMissingDeps(result);
+  return result;
+}
+
+export function warnMissingDeps(result: PrepareResult): void {
   for (const missing of result.depsMissing) {
     if (missing.reason === "falhou") warn(`Falha ao instalar dependências do ${missing.id}`);
     warn(`Rode manualmente: ${missing.command} em ${missing.cwd}`);
   }
-  return result;
 }
 
 export function printUrls(result: PrepareResult): void {

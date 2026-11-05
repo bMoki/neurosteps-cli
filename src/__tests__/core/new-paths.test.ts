@@ -1,11 +1,18 @@
 import { describe, test, expect, mock } from "bun:test";
-import { newAction } from "../../actions/new";
+import { type AddRepoInput, type NsContext, type OptionalRepo, createSilentContext, runNew } from "../../core";
 import { SEED_VOLUME } from "../../lib/config";
 import { createShellResult } from "../setup";
 
-class ProcessExit extends Error {}
+const prepared = {
+  branch: "feat-123",
+  ports: { db: 5438, backend: 8084, frontend: 3015 },
+  urls: { backend: "", frontend: "" },
+  services: [],
+  depsInstalled: [],
+  depsMissing: [],
+};
 
-describe("newAction paths", () => {
+describe("runNew paths", () => {
   const createMocks = () => ({
     branchExistsOrigin: mock((repo: string, branch: string) => Promise.resolve(branch === "master")),
     fetch: mock((repo: string) => Promise.resolve()),
@@ -20,7 +27,12 @@ describe("newAction paths", () => {
     shell: mock((cmd: string[]) => Promise.resolve(createShellResult(cmd))),
     markTouched: mock(() => Promise.resolve()),
     hooks: mock(() => Promise.resolve()),
+    addRepo: mock((input: AddRepoInput, _ctx: NsContext) => Promise.resolve({ branch: input.branch, repo: input.repo, path: "" })),
+    prepare: mock(() => Promise.resolve(prepared)),
   });
+
+  const run = (mocks: ReturnType<typeof createMocks>, repos: OptionalRepo[] = [], baseBranch = "master") =>
+    runNew({ branch: "feat-123", baseBranch, repos, installMissingDeps: "never" }, createSilentContext(), mocks);
 
   test("uses existing remote branch", async () => {
     const mocks = createMocks();
@@ -38,7 +50,7 @@ describe("newAction paths", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.trackBranch).toHaveBeenCalled();
     } finally {
       Bun.file = originalFile;
@@ -61,7 +73,7 @@ describe("newAction paths", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.trackBranch).toHaveBeenCalledWith(expect.stringContaining("docs"), "feat-123");
     } finally {
       Bun.file = originalFile;
@@ -81,14 +93,14 @@ describe("newAction paths", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.localBranch).toHaveBeenCalledWith(expect.any(String), "feat-123", "origin/master");
     } finally {
       Bun.file = originalFile;
     }
   });
 
-  test("exits when base branch missing in backend", async () => {
+  test("fails when base branch missing in backend", async () => {
     const mocks = createMocks();
     mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
       branch === "develop" && !repo.includes("backend")
@@ -98,17 +110,18 @@ describe("newAction paths", () => {
       exists: () => Promise.resolve(path.includes(".git")),
     })) as any;
     try {
-      await newAction("feat-123", "develop", false, mocks);
+      await run(mocks, [], "develop");
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
       expect((e as Error).message).toContain("origin/develop");
+      expect(e).toMatchObject({ category: "nao-encontrado" });
     } finally {
       Bun.file = originalFile;
     }
   });
 
-  test("exits when base branch missing in manager", async () => {
+  test("fails when base branch missing in manager", async () => {
     const mocks = createMocks();
     mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
       branch === "master" && !repo.includes("manager")
@@ -118,7 +131,7 @@ describe("newAction paths", () => {
       exists: () => Promise.resolve(path.includes(".git")),
     })) as any;
     try {
-      await newAction("feat-123", "master", true, mocks);
+      await run(mocks, ["manager"]);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
@@ -128,7 +141,7 @@ describe("newAction paths", () => {
     }
   });
 
-  test("exits when base branch missing in docs", async () => {
+  test("fails when base branch missing in docs", async () => {
     const mocks = createMocks();
     mocks.branchExistsOrigin = mock((repo: string, branch: string) => Promise.resolve(
       branch === "master" && !repo.endsWith("/docs")
@@ -138,7 +151,7 @@ describe("newAction paths", () => {
       exists: () => Promise.resolve(path.includes(".git")),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
@@ -171,7 +184,7 @@ describe("newAction paths", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.volumeCopy).toHaveBeenCalled();
     } finally {
       Bun.file = originalFile;
@@ -196,14 +209,14 @@ describe("newAction paths", () => {
       text: () => Promise.resolve(""),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(mocks.volumeCopy).not.toHaveBeenCalled();
     } finally {
       Bun.file = originalFile;
     }
   });
 
-  test("exits when worktree already exists", async () => {
+  test("fails when worktree already exists", async () => {
     const mocks = createMocks();
     const originalFile = Bun.file;
     Bun.file = mock((path: string) => ({
@@ -213,11 +226,14 @@ describe("newAction paths", () => {
       ),
     })) as any;
     try {
-      await newAction("feat-123", "master", false, mocks);
+      await run(mocks, []);
       expect(false).toBe(true);
     } catch (e) {
       expect(e).toBeInstanceOf(Error);
       expect((e as Error).message).toContain("já existe");
+      expect(e).toMatchObject({ category: "conflito", hint: "Para recriar, remova antes com: ns rm feat-123" });
+      expect(mocks.worktree).not.toHaveBeenCalled();
+      expect(mocks.prepare).not.toHaveBeenCalled();
     } finally {
       Bun.file = originalFile;
     }

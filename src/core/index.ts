@@ -5,6 +5,7 @@
 export type { NsErrorCategory, NsErrorDetails, NsErrorOptions } from "./errors";
 export {
   NsError,
+  asNsError,
   isNsError,
   naoEncontrado,
   conflito,
@@ -39,3 +40,9 @@ export { runPrepare, servicesToStart } from "./operations/prepare";
 
 export type { StopInput, StopResult } from "./operations/stop";
 export { runStop } from "./operations/stop";
+
+export type { AddableRepo, AddRepoDeps, AddRepoInput, AddRepoResult, OptionalRepo } from "./operations/add-repo";
+export { ADDABLE_REPOS, OPTIONAL_REPOS, repoLabel, runAddRepo } from "./operations/add-repo";
+
+export type { MissingRepo, NewDeps, NewInput, NewResult } from "./operations/new";
+export { runNew } from "./operations/new";
