@@ -156,6 +156,7 @@ export interface StatusJsonRow {
   manager: boolean | null;
   reportServer: boolean | null;
   states: BranchStatus["services"];   // os quatro Estados; os booleanos acima são "está Rodando"
+  repos: BranchStatus["repos"];
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
@@ -181,6 +182,7 @@ export function toStatusJsonRow(status: BranchStatus): StatusJsonRow {
     manager: isRunning(status.services.manager),
     reportServer: isRunning(status.services.reportServer),
     states: status.services,
+    repos: status.repos,
     flags: status.flags,
     stale: status.stale,
     lastCommitAt: status.lastCommitAt,
@@ -233,6 +235,7 @@ export function renderBranchDetail(status: BranchStatus, plain = false): void {
     console.log(`frontend\tlocalhost:${status.ports.frontend}`);
     if (status.ports.manager) console.log(`manager\tlocalhost:${status.ports.manager}`);
     if (status.ports.reportServer) console.log(`report-server\tlocalhost:${status.ports.reportServer}`);
+    for (const { repo, gitBranch } of status.repos) console.log(`repo\t${repo}\t${gitBranch ?? "-"}`);
   } else {
     heading(`Branch: ${status.branch}`);
     detail("Path", status.path);
@@ -245,6 +248,7 @@ export function renderBranchDetail(status: BranchStatus, plain = false): void {
     if (status.ports.reportServer) {
       detail("Report-server", `localhost:${status.ports.reportServer}`);
     }
+    if (status.repos.length > 0) detail("Repos", status.repos.map(describeRepo).join(", "));
   }
 
   if (status.services.db === "rodando") {
@@ -258,6 +262,10 @@ export function renderBranchDetail(status: BranchStatus, plain = false): void {
   if (status.stale) {
     warn(`Flag ${STALE_BRANCH_FLAG}: sem commit e sem uso da CLI há mais de 7 dias`);
   }
+}
+
+function describeRepo({ repo, gitBranch }: BranchStatus["repos"][number]): string {
+  return `${repo} (${gitBranch ?? "sem branch"})`;
 }
 
 const DETAIL_SERVICES: Array<{ key: ServiceKey; id: ServiceId; label: string }> = [

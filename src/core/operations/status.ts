@@ -15,6 +15,7 @@ import {
   type WorkspaceEnv,
 } from "../../lib/config";
 import { pathExists } from "../../lib/filesystem";
+import { readCheckedOutBranch } from "../../lib/git";
 import { listRunningContainers as defaultListRunningContainers } from "../../lib/docker";
 import { listListeningPorts as defaultListListeningPorts } from "../../lib/ports";
 import {
@@ -68,10 +69,17 @@ export interface BranchStatus {
     manager?: string; reportServer?: string;
   };
   errors: Partial<Record<ServiceKey, string>>;  // por que cada Serviço que Falhou falhou, tirado do log
+  repos: RepoCheckout[];              // Repos presentes na pasta da branch, na ordem dos Repos base
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
   lastCliUsedAt: string | null;
+}
+
+/** Branch git checada num Repo da Branch de workspace; null quando o Repo não tem git ou está em HEAD destacado. */
+export interface RepoCheckout {
+  repo: string;
+  gitBranch: string | null;
 }
 
 /** Checkout principal de um Repo, de onde as branches de workspace saem. */
@@ -95,6 +103,7 @@ export interface StatusDeps {
   getBranchFlagsMany: typeof defaultGetBranchFlagsMany;
   listBaseRepos: () => BaseRepo[];
   readServiceError: (branch: string, id: ServiceId) => Promise<string | null>;
+  readRepoCheckouts: (branchPath: string) => Promise<RepoCheckout[]>;
 }
 
 /**
@@ -118,6 +127,7 @@ export async function runStatus(
   const listBaseRepos = deps.listBaseRepos ?? defaultListBaseRepos;
   const readServiceError = deps.readServiceError
     ?? ((branch: string, id: ServiceId) => lastErrorLine(resolveServiceLogFile(branch, id)));
+  const readRepoCheckouts = deps.readRepoCheckouts ?? defaultReadRepoCheckouts;
 
   const names = input.branch ? [input.branch] : listBranches();
   const [listening, panes, runningContainers] = await Promise.all([
@@ -174,11 +184,12 @@ export async function runStatus(
       const line = await readServiceError(branch, id);
       if (line) errors[key] = line;
     }
+    const path = join(WORKTREES_DIR, branch);
 
     return {
       branch,
       slug,
-      path: join(WORKTREES_DIR, branch),
+      path,
       dbContainer: env.DB_CONTAINER,
       ports: {
         db: env.DB_PORT,
@@ -201,6 +212,7 @@ export async function runStatus(
         reportServer: env.REPORT_SERVER_PORT ? resolveServiceSession(slug, "report-server") : undefined,
       },
       errors,
+      repos: await readRepoCheckouts(path),
       flags: flags.flags,
       stale: flags.stale,
       lastCommitAt: flags.lastCommitAt,
@@ -223,8 +235,8 @@ export function deriveServiceState(listening: boolean, pane: ServicePane | undef
   return "parado";
 }
 
-/** Repos base presentes no disco, na ordem em que uma branch de workspace os tem. */
-function defaultListBaseRepos(): BaseRepo[] {
+/** Repos base, na ordem em que uma branch de workspace os tem. */
+function baseRepos(): BaseRepo[] {
   return [
     { repo: "backend", path: BACKEND_REPO },
     { repo: "frontend", path: FRONTEND_REPO },
@@ -232,7 +244,16 @@ function defaultListBaseRepos(): BaseRepo[] {
     { repo: "report-server", path: REPORT_SERVER_REPO },
     { repo: "docs", path: DOCS_REPO },
     { repo: "parents", path: PARENTS_REPO },
-  ].filter(({ path }) => pathExists(path));
+  ];
+}
+
+function defaultListBaseRepos(): BaseRepo[] {
+  return baseRepos().filter(({ path }) => pathExists(path));
+}
+
+async function defaultReadRepoCheckouts(branchPath: string): Promise<RepoCheckout[]> {
+  const present = baseRepos().map(({ repo }) => repo).filter((repo) => pathExists(join(branchPath, repo)));
+  return Promise.all(present.map(async (repo) => ({ repo, gitBranch: await readCheckedOutBranch(join(branchPath, repo)) })));
 }
 
 const SERVICE_KEYS: Array<[ServiceKey, ServiceId]> = [

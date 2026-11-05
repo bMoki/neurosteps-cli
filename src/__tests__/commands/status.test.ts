@@ -37,6 +37,7 @@ function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
     aliases: { backend: `feat-123.api.${PRODUCT_NAME}`, frontend: `feat-123.web.${PRODUCT_NAME}` },
     sessions: { backend: "ns-feat-123-backend", frontend: "ns-feat-123-frontend" },
     errors: {},
+    repos: [],
     flags: [],
     stale: false,
     lastCommitAt: null,
@@ -225,11 +226,19 @@ describe("--json", () => {
       manager: null,
       reportServer: null,
       states: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
+      repos: [],
       flags: [],
       stale: false,
       lastCommitAt: null,
       lastCliUsedAt: null,
     });
+  });
+
+  test("o JSON leva a branch git de cada Repo", async () => {
+    const repos = [{ repo: "backend", gitBranch: "feat-123" }, { repo: "frontend", gitBranch: null }];
+    const { stdout } = await run(["--json", "feat-123"], { readStatus: async () => [status({ repos })] });
+
+    expect(JSON.parse(stdout).repos).toEqual(repos);
   });
 
   test("os booleanos dizem só se está Rodando; os estados vão em states", async () => {
@@ -335,6 +344,19 @@ describe("detalhe de uma branch", () => {
     expect(stderr).toMatch(/Frontend falhou\. Log: .*\/feat-123\/frontend\.log/);
     expect(stderr).toContain("Manager parado");
     expect(stderr).toContain("Report-server parado");
+  });
+
+  test("mostra a branch git de cada Repo, e Repo sem branch sem falhar", () => {
+    const repos = [{ repo: "backend", gitBranch: "feat-123" }, { repo: "frontend", gitBranch: null }];
+    captured = captureOutput();
+    renderBranchDetail(status({ repos }), true);
+    expect(captured.out).toContain("repo\tbackend\tfeat-123");
+    expect(captured.out).toContain("repo\tfrontend\t-");
+    captured.restore();
+
+    captured = captureOutput();
+    renderBranchDetail(status({ repos }));
+    expect(captured.err.join("\n")).toContain("backend (feat-123), frontend (sem branch)");
   });
 
   test("reporta a flag stale", () => {

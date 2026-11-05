@@ -1,3 +1,4 @@
+import { join, resolve } from "path";
 import { commandErrorMessage, execChecked, execSync, type ShellResult } from "./shell";
 import { pathExists } from "./filesystem";
 
@@ -110,4 +111,23 @@ export function localBranchExists(repo: string, branch: string): boolean {
   if (result.exitCode === 0) return true;
   if (result.exitCode === 1) return false;
   throw new Error(commandErrorMessage(`verificar branch local ${branch}`, result));
+}
+
+/**
+ * Branch checada num Repo, lida dos arquivos do git sem abrir processo: o `ns status` lê todas as branches de uma vez.
+ * Numa worktree, `.git` é um arquivo que aponta para a pasta do git dela. Sem git ou em HEAD destacado, devolve null.
+ */
+export async function readCheckedOutBranch(repo: string): Promise<string | null> {
+  const dotGit = join(repo, ".git");
+  const pointer = (await readText(dotGit))?.match(/^gitdir: (.+)$/m)?.[1]?.trim();
+  const head = await readText(join(pointer ? resolve(repo, pointer) : dotGit, "HEAD"));
+  return head?.match(/^ref: refs\/heads\/(.+)$/m)?.[1]?.trim() ?? null;
+}
+
+async function readText(path: string): Promise<string | null> {
+  try {
+    return await Bun.file(path).text();
+  } catch {
+    return null;
+  }
 }

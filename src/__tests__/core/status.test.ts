@@ -3,7 +3,9 @@ import { NsError, createSilentContext, deriveServiceState, runStatus } from "../
 import type { NsProgressEvent } from "../../core";
 import type { StatusDeps } from "../../core/operations/status";
 import type { BranchFlagInfo } from "../../lib/branch-flags";
-import { PRODUCT_NAME } from "../../lib/config";
+import { mkdirSync, rmSync, writeFileSync } from "fs";
+import { join } from "path";
+import { PRODUCT_NAME, WORKTREES_DIR } from "../../lib/config";
 import {
   TEST_BACKEND_PORT,
   TEST_DB_CONTAINER,
@@ -31,6 +33,7 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
     getBranchFlagsMany: mock((branches: string[]) =>
       Promise.resolve(new Map(branches.map((branch) => [branch, NO_FLAGS])))),
     listBaseRepos: mock(() => []),
+    readRepoCheckouts: mock(() => Promise.resolve([])),
     ...overrides,
   };
 }
@@ -79,6 +82,44 @@ describe("runStatus", () => {
     });
     expect(status.errors).toEqual({ backend: "erro do backend" });
     expect(readServiceError).toHaveBeenCalledTimes(1);
+  });
+
+  test("informa a branch git de cada Repo lida na pasta da branch", async () => {
+    const readRepoCheckouts = mock(() => Promise.resolve([
+      { repo: "backend", gitBranch: "feat-123" },
+      { repo: "frontend", gitBranch: "outra" },
+    ]));
+    const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({ readRepoCheckouts }));
+
+    expect(result.branches[0]!.repos).toEqual([
+      { repo: "backend", gitBranch: "feat-123" },
+      { repo: "frontend", gitBranch: "outra" },
+    ]);
+    expect(readRepoCheckouts).toHaveBeenCalledWith(result.branches[0]!.path);
+  });
+
+  test("lê os Repos da pasta da branch na ordem dos Repos base, com a branch git de cada um", async () => {
+    const folder = join(WORKTREES_DIR, "feat-repos");
+    const checkout = (repo: string, head: string) => {
+      mkdirSync(join(folder, repo, ".git"), { recursive: true });
+      writeFileSync(join(folder, repo, ".git", "HEAD"), head);
+    };
+    checkout("docs", "ref: refs/heads/feat-repos\n");
+    checkout("frontend", "ref: refs/heads/trocada\n");
+    checkout("backend", "3f2a9c1e0b7d4a5f6e8c9b0a1d2e3f4a5b6c7d8e\n");
+    mkdirSync(join(folder, "parents"));
+
+    try {
+      const result = await runStatus({ branch: "feat-repos" }, createSilentContext(), createDeps({ readRepoCheckouts: undefined }));
+      expect(result.branches[0]!.repos).toEqual([
+        { repo: "backend", gitBranch: null },
+        { repo: "frontend", gitBranch: "trocada" },
+        { repo: "docs", gitBranch: "feat-repos" },
+        { repo: "parents", gitBranch: null },
+      ]);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
   });
 
   test("serviço ausente na branch vira null, não false", async () => {

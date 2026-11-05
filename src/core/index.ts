@@ -21,6 +21,7 @@ export type {
   BaseRepo,
   BranchStatus,
   DbState,
+  RepoCheckout,
   ServiceKey,
   ServiceState,
   StatusInput,
