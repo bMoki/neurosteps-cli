@@ -11,6 +11,8 @@ import {
   runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
   runPull as defaultRunPull,
+  runRm as defaultRunRm,
+  runRmPreview as defaultRunRmPreview,
   runStatus as defaultRunStatus,
   runStop as defaultRunStop,
   servicesToStart,
@@ -50,6 +52,8 @@ export interface RpcOperationDeps {
   runNew: typeof defaultRunNew;
   runAddRepo: typeof defaultRunAddRepo;
   runPull: typeof defaultRunPull;
+  runRmPreview: typeof defaultRunRmPreview;
+  runRm: typeof defaultRunRm;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -62,6 +66,8 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runNew = deps.runNew ?? defaultRunNew;
   const runAddRepo = deps.runAddRepo ?? defaultRunAddRepo;
   const runPull = deps.runPull ?? defaultRunPull;
+  const runRmPreview = deps.runRmPreview ?? defaultRunRmPreview;
+  const runRm = deps.runRm ?? defaultRunRm;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
   const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
@@ -103,6 +109,15 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     pull: withInput(
       z.strictObject({ branch: z.string().min(1) }),
       (input, ctx) => runPull(input, ctx),
+    ),
+    rmPreview: withInput(
+      z.strictObject({ branch: z.string().min(1) }),
+      (input, ctx) => runRmPreview(input, ctx),
+    ),
+    // Sem `force`: pelo adapter, alterações não commitadas sempre bloqueiam a remoção.
+    rm: withInput(
+      z.strictObject({ branch: z.string().min(1), purge: z.boolean().default(false) }),
+      (input, ctx) => runRm(input, ctx),
     ),
   };
 }

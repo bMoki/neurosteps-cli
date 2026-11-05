@@ -81,6 +81,7 @@ export interface BaseRepo {
 }
 
 export interface StatusResult {
+  worktreesDir: string;               // onde ficam as Branches de workspace, removidas ou não
   baseRepos: BaseRepo[];
   branches: BranchStatus[];
 }
@@ -207,7 +208,7 @@ export async function runStatus(
     };
   }));
 
-  return { baseRepos: listBaseRepos(), branches };
+  return { worktreesDir: WORKTREES_DIR, baseRepos: listBaseRepos(), branches };
 }
 
 /**

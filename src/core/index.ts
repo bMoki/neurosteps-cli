@@ -49,3 +49,6 @@ export { runNew } from "./operations/new";
 
 export type { PullDeps, PullInput, PullRepoResult, PullResult, PullStatus } from "./operations/pull";
 export { DEFAULT_BRANCH_ALIAS, runPull } from "./operations/pull";
+
+export type { RmDeps, RmInput, RmPreview, RmResult, UncommittedRepo } from "./operations/rm";
+export { runRm, runRmPreview, uncommittedError } from "./operations/rm";

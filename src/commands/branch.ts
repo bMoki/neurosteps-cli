@@ -1,5 +1,4 @@
 import { Argument, Command, InvalidArgumentError } from "commander";
-import { rmAction, rmFlaggedAction } from "../actions/rm";
 import { detail, emptyLine, hint, section, spinner, warn } from "../lib/logger";
 import { createTerminalContext, stopSpinnerOnError } from "../lib/terminal-context";
 import { type NewDeps, OPTIONAL_REPOS, type OptionalRepo, repoLabel, runNew } from "../core";
@@ -77,25 +76,4 @@ function parseRepos(value: string): OptionalRepo[] {
     throw new InvalidArgumentError(`Repo opcional desconhecido: ${unknown.join(", ")}. Use: ${WITH_REPOS.join(", ")}.`);
   }
   return repos as OptionalRepo[];
-}
-
-export function rmCommand(): Command {
-  return new Command("rm")
-    .description("Remove a worktree da branch")
-    .argument("[branch]", "nome da branch")
-    .option("--flagged <flag>", "remove apenas branches com a flag informada (ex: stale)")
-    .option("--purge", "também remove o volume Docker")
-    .option("-f, --force", "pula confirmação e força remoção de worktrees com alterações locais")
-    .option("-n, --dry-run", "simula a operação sem executar")
-    .action(async (branch, opts) => {
-      const rmOpts = { purge: opts.purge || false, force: opts.force || false, dryRun: opts.dryRun || false };
-      if (opts.flagged) {
-        if (branch) throw new Error("Use uma branch ou --flagged, não ambos.");
-        await rmFlaggedAction(opts.flagged, rmOpts);
-        return;
-      }
-
-      if (!branch) throw new Error("Informe uma branch ou use --flagged <flag>.");
-      await rmAction(branch, rmOpts);
-    });
 }

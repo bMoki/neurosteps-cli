@@ -21,7 +21,7 @@ function startServer(operations: RpcOperations) {
   return { out, server, send, settle, messagesOf };
 }
 
-const STATUS: StatusResult = { baseRepos: [], branches: [] };
+const STATUS: StatusResult = { worktreesDir: "/w", baseRepos: [], branches: [] };
 const PREPARED: PrepareResult = {
   branch: "feat",
   ports: { db: 5438, backend: 8084, frontend: 3015 },
@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -297,6 +297,28 @@ describe("ns rpc: protocolo", () => {
     expect(messagesOf("r2")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
   });
 
+  test("rm vem sem force, apaga o banco só quando pedido, e rmPreview devolve a prévia", async () => {
+    const calls: unknown[] = [];
+    const preview = { branch: "feat", path: "/w/feat", repos: ["backend"], volume: "v", uncommitted: [] };
+    const { send, settle, out, messagesOf } = startServer(createRpcOperations({
+      runRmPreview: async () => preview,
+      runRm: async (input) => {
+        calls.push(input);
+        return { branch: input.branch, purged: input.purge ?? false };
+      },
+    }));
+
+    send({ type: "op", id: "r1", op: "rmPreview", input: { branch: "feat" } });
+    send({ type: "op", id: "r2", op: "rm", input: { branch: "feat" } });
+    send({ type: "op", id: "r3", op: "rm", input: { branch: "feat", purge: true } });
+    send({ type: "op", id: "r4", op: "rm", input: { branch: "feat", force: true } });
+    await settle();
+
+    expect(out).toContainEqual({ type: "result", id: "r1", result: preview });
+    expect(calls).toEqual([{ branch: "feat", purge: false }, { branch: "feat", purge: true }]);
+    expect(messagesOf("r4")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -324,8 +346,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm." } },
     ]);
   });
 
