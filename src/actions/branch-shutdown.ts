@@ -101,7 +101,7 @@ async function stopBranchProcesses(env: WorkspaceEnv, aliasSlug: string, run: ty
   // O kill por porta fica para Serviço que subiu por fora do tmux.
   await stopBranchSessions(aliasSlug, run);
 
-  const ports = [env.BACKEND_PORT, env.FRONTEND_PORT, env.MANAGER_PORT].filter(
+  const ports = [env.BACKEND_PORT, env.FRONTEND_PORT, env.MANAGER_PORT, env.REPORT_SERVER_PORT].filter(
     (port): port is number => Boolean(port),
   );
 

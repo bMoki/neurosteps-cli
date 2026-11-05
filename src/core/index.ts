@@ -16,8 +16,15 @@ export {
 export type { NsContext, NsProgressEvent, NsQuestion } from "./context";
 export { applyWhenUnavailable, createSilentContext } from "./context";
 
-export type { BaseRepo, BranchStatus, StatusInput, StatusResult } from "./operations/status";
-export { runStatus } from "./operations/status";
+export type {
+  BaseRepo,
+  BranchStatus,
+  DbState,
+  ServiceState,
+  StatusInput,
+  StatusResult,
+} from "./operations/status";
+export { deriveServiceState, runStatus } from "./operations/status";
 
 export type {
   MissingDep,
@@ -28,3 +35,6 @@ export type {
   ServicePlan,
 } from "./operations/prepare";
 export { runPrepare } from "./operations/prepare";
+
+export type { StopInput, StopResult } from "./operations/stop";
+export { runStop } from "./operations/stop";

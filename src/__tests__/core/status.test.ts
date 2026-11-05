@@ -1,10 +1,16 @@
 import { describe, expect, mock, test } from "bun:test";
-import { NsError, createSilentContext, runStatus } from "../../core";
+import { NsError, createSilentContext, deriveServiceState, runStatus } from "../../core";
 import type { NsProgressEvent } from "../../core";
 import type { StatusDeps } from "../../core/operations/status";
 import type { BranchFlagInfo } from "../../lib/branch-flags";
 import { PRODUCT_NAME } from "../../lib/config";
-import { TEST_DB_CONTAINER, createMockWorkspaceEnv } from "../setup";
+import {
+  TEST_BACKEND_PORT,
+  TEST_DB_CONTAINER,
+  TEST_FRONTEND_PORT,
+  TEST_MANAGER_PORT,
+  createMockWorkspaceEnv,
+} from "../setup";
 
 type WorkspaceEnv = Awaited<ReturnType<StatusDeps["readWorkspaceEnv"]>>;
 
@@ -20,7 +26,8 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
     listBranches: mock(() => ["feat-123"]),
     readWorkspaceEnv: mock(() => Promise.resolve(createMockWorkspaceEnv() as WorkspaceEnv)),
     listRunningContainers: mock(() => Promise.resolve([TEST_DB_CONTAINER])),
-    listAliases: mock(() => Promise.resolve([])),
+    listListeningPorts: mock(() => Promise.resolve(new Set<number>())),
+    listServicePanes: mock(() => Promise.resolve(new Map())),
     getBranchFlagsMany: mock((branches: string[]) =>
       Promise.resolve(new Map(branches.map((branch) => [branch, NO_FLAGS])))),
     listBaseRepos: mock(() => []),
@@ -31,10 +38,7 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
 describe("runStatus", () => {
   test("monta o estado completo de uma branch", async () => {
     const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({
-      listAliases: mock(() => Promise.resolve([
-        `feat-123.api.${PRODUCT_NAME}`,
-        `feat-123.manager.${PRODUCT_NAME}`,
-      ])),
+      listListeningPorts: mock(() => Promise.resolve(new Set([TEST_BACKEND_PORT, TEST_MANAGER_PORT]))),
     }));
 
     expect(result.branches).toHaveLength(1);
@@ -45,10 +49,10 @@ describe("runStatus", () => {
     expect(status.dbContainer).toBe("myapp-psql-feat-123");
     expect(status.ports).toMatchObject({ db: 5438, backend: 8084, frontend: 3015, manager: 3021 });
     expect(status.services).toEqual({
-      db: true,
-      backend: true,
-      frontend: false,
-      manager: true,
+      db: "rodando",
+      backend: "rodando",
+      frontend: "parado",
+      manager: "rodando",
       reportServer: null,
     });
     expect(status.aliases.backend).toBe(`feat-123.api.${PRODUCT_NAME}`);
@@ -110,21 +114,53 @@ describe("runStatus", () => {
     });
   });
 
-  test("consulta docker, portless e git em lote, não por branch", async () => {
+  test("lê o Estado de cada Serviço da porta e da sessão tmux com o nome da branch", async () => {
+    const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({
+      listRunningContainers: mock(() => Promise.resolve([])),
+      listListeningPorts: mock(() => Promise.resolve(new Set([TEST_BACKEND_PORT]))),
+      listServicePanes: mock(() => Promise.resolve(new Map([
+        ["ns-feat-123-backend", "alive" as const],
+        ["ns-feat-123-frontend", "alive" as const],
+        ["ns-feat-123-manager", "failed" as const],
+        ["ns-outra-report-server", "failed" as const],
+      ]))),
+    }));
+
+    expect(result.branches[0]!.services).toEqual({
+      db: "parado",
+      backend: "rodando",
+      frontend: "iniciando",
+      manager: "falhou",
+      reportServer: null,
+    });
+  });
+
+  test("Serviço que atende na porta fora do tmux está Rodando", async () => {
+    const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({
+      listListeningPorts: mock(() => Promise.resolve(new Set([TEST_FRONTEND_PORT]))),
+    }));
+
+    expect(result.branches[0]!.services.frontend).toBe("rodando");
+  });
+
+  test("consulta docker, portas, tmux e git em lote, não por branch", async () => {
     const listRunningContainers = mock(() => Promise.resolve([TEST_DB_CONTAINER]));
-    const listAliases = mock(() => Promise.resolve([]));
+    const listListeningPorts = mock(() => Promise.resolve(new Set<number>()));
+    const listServicePanes = mock(() => Promise.resolve(new Map()));
     const getBranchFlagsMany = mock((branches: string[]) =>
       Promise.resolve(new Map(branches.map((branch) => [branch, NO_FLAGS]))));
 
     await runStatus({}, createSilentContext(), createDeps({
       listBranches: mock(() => ["a", "b", "c"]),
       listRunningContainers,
-      listAliases,
+      listListeningPorts,
+      listServicePanes,
       getBranchFlagsMany,
     }));
 
     expect(listRunningContainers).toHaveBeenCalledTimes(1);
-    expect(listAliases).toHaveBeenCalledTimes(1);
+    expect(listListeningPorts).toHaveBeenCalledTimes(1);
+    expect(listServicePanes).toHaveBeenCalledTimes(1);
     expect(getBranchFlagsMany).toHaveBeenCalledTimes(1);
     expect(getBranchFlagsMany.mock.calls[0]![0]).toEqual(["a", "b", "c"]);
   });
@@ -171,5 +207,20 @@ describe("runStatus", () => {
     expect(events.map((e) => e.step)).toEqual(["status:branch", "status:branch"]);
     expect(events.map((e) => [e.index, e.total])).toEqual([[1, 2], [2, 2]]);
     expect(events[0]!.label).toContain("a");
+  });
+});
+
+describe("deriveServiceState", () => {
+  test("atender na porta é Rodando, com ou sem sessão", () => {
+    expect(deriveServiceState(true, undefined)).toBe("rodando");
+    expect(deriveServiceState(true, "alive")).toBe("rodando");
+    expect(deriveServiceState(true, "failed")).toBe("rodando");
+  });
+
+  test("fora da porta, a sessão decide entre Iniciando, Falhou e Parado", () => {
+    expect(deriveServiceState(false, "alive")).toBe("iniciando");
+    expect(deriveServiceState(false, "failed")).toBe("falhou");
+    expect(deriveServiceState(false, "exited")).toBe("parado");
+    expect(deriveServiceState(false, undefined)).toBe("parado");
   });
 });

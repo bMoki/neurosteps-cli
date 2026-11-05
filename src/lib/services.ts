@@ -12,6 +12,14 @@ export interface ServiceSession {
 
 export type ServiceStart = "started" | "running";
 
+/**
+ * Situação do painel da sessão tmux de um Serviço: o processo ainda vive, terminou com erro,
+ * ou terminou porque alguém o encerrou (saída 0, ou Ctrl-C no Console).
+ */
+export type ServicePane = "alive" | "failed" | "exited";
+
+const STOPPED_BY_USER = new Set(["0", "130"]);
+
 // `=nome:` casa a sessão exata (sem o casamento por prefixo do tmux) e aponta
 // para a janela dela, que é onde `remain-on-exit` e `pipe-pane` valem.
 const target = (session: string) => `=${session}:`;
@@ -50,6 +58,32 @@ export async function startService(service: ServiceSession, run: typeof exec = e
     throw new Error(`Falha ao criar a sessão tmux ${service.session}: ${(result.stderr || result.stdout).trim()}`);
   }
   return "started";
+}
+
+/**
+ * Painel de cada sessão tmux aberta, numa chamada só. Sem tmux, ou sem servidor
+ * tmux rodando, não há sessão nenhuma.
+ */
+export async function listServicePanes(run: typeof exec = exec): Promise<Map<string, ServicePane>> {
+  const panes = new Map<string, ServicePane>();
+  let result;
+  try {
+    // `:` separa os campos porque o tmux não aceita `:` em nome de sessão. Tab não serve:
+    // sem locale UTF-8 (app aberto pelo Finder) o tmux troca o tab por `_`.
+    result = await run(
+      ["tmux", "list-panes", "-a", "-F", "#{session_name}:#{pane_dead}:#{pane_dead_status}"],
+      { silent: true },
+    );
+  } catch {
+    return panes;
+  }
+  if (result.exitCode !== 0) return panes;
+  for (const line of result.stdout.split("\n")) {
+    const [session, dead, status = ""] = line.split(":");
+    if (!session) continue;
+    panes.set(session, dead !== "1" ? "alive" : STOPPED_BY_USER.has(status) ? "exited" : "failed");
+  }
+  return panes;
 }
 
 /** Derruba a sessão do Serviço. Sessão que não existe, ou tmux ausente, não é erro. */

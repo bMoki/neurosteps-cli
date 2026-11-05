@@ -167,6 +167,8 @@ ns status minha-branch
 ns status --all
 ```
 
+Cada serviço aparece num de quatro estados: **Rodando** (`●`, atende na porta), **Iniciando** (`◐`, a sessão tmux está viva mas a porta ainda não responde), **Falhou** (`✕`, o processo terminou sem `ns stop`; o detalhe da branch aponta o log) e **Parado** (`○`). O banco só fica Rodando ou Parado. No `--plain` os estados saem como `on`, `starting`, `failed` e `off`; no `--json` as chaves booleanas continuam dizendo só se está Rodando, e `states` traz os quatro estados.
+
 ### Diagnosticar e corrigir
 
 ```bash
@@ -286,7 +288,7 @@ ns rm minha-branch --force
 | `ns status` | Mostra status compacto de todas as branches. | Lê `~/Developer/worktrees` ou `NS_BASE_DIR/worktrees`. |
 | `ns status <branch>` | Mostra detalhes de uma branch. | Inclui portas, DB e aliases. |
 | `ns status --all` | Mostra detalhes de todas as branches. | Mais verboso. |
-| `ns rpc` | Serve as operações do núcleo em NDJSON pelo stdin/stdout. | Usado pelo Thalamus e outros adapters. Protocolo na [ADR 0003](docs/adr/0003-ns-rpc-adapter-stdio.md). |
+| `ns rpc` | Serve as operações do núcleo em NDJSON pelo stdin/stdout: `status`, `prepare`, `start` e `stop`. | Usado pelo Thalamus e outros adapters. O `start` exige tmux. Protocolo na [ADR 0003](docs/adr/0003-ns-rpc-adapter-stdio.md). |
 | `ns doctor <branch>` | Diagnostica configuração da branch. | Verifica worktree, env, Docker, Portless e portas. |
 | `ns doctor <branch> --fix` | Tenta corrigir problemas conhecidos. | Pode recriar templates, volume e aliases. |
 

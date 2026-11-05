@@ -10,11 +10,13 @@ import {
   WORKTREES_DIR,
   listBranches as defaultListBranches,
   readWorkspaceEnv as defaultReadWorkspaceEnv,
+  resolveServiceSession,
   type WorkspaceEnv,
 } from "../../lib/config";
 import { pathExists } from "../../lib/filesystem";
 import { listRunningContainers as defaultListRunningContainers } from "../../lib/docker";
-import { listAliases as defaultListAliases } from "../../lib/portless";
+import { listListeningPorts as defaultListListeningPorts } from "../../lib/ports";
+import { type ServicePane, listServicePanes as defaultListServicePanes } from "../../lib/services";
 import {
   getBranchFlagsMany as defaultGetBranchFlagsMany,
   type BranchFlagInfo,
@@ -26,6 +28,13 @@ export interface StatusInput {
   branch?: string;   // ausente = todas as branches
 }
 
+/**
+ * Estado de Serviço, como no glossário: Parado, Iniciando, Rodando ou Falhou.
+ * O banco só tem Parado e Rodando.
+ */
+export type ServiceState = "parado" | "iniciando" | "rodando" | "falhou";
+export type DbState = Extract<ServiceState, "parado" | "rodando">;
+
 export interface BranchStatus {
   branch: string;
   slug: string;
@@ -36,11 +45,11 @@ export interface BranchStatus {
     manager?: number; reportServer?: number;
   };
   services: {
-    db: boolean;
-    backend: boolean;
-    frontend: boolean;
-    manager: boolean | null;          // null = não existe nesta branch
-    reportServer: boolean | null;
+    db: DbState;
+    backend: ServiceState;
+    frontend: ServiceState;
+    manager: ServiceState | null;     // null = não existe nesta branch
+    reportServer: ServiceState | null;
   };
   aliases: {                          // alias Portless esperado de cada serviço
     backend: string; frontend: string;
@@ -67,7 +76,8 @@ export interface StatusDeps {
   listBranches: typeof defaultListBranches;
   readWorkspaceEnv: typeof defaultReadWorkspaceEnv;
   listRunningContainers: typeof defaultListRunningContainers;
-  listAliases: typeof defaultListAliases;
+  listListeningPorts: () => Promise<Set<number>>;
+  listServicePanes: () => Promise<Map<string, ServicePane>>;
   getBranchFlagsMany: typeof defaultGetBranchFlagsMany;
   listBaseRepos: () => BaseRepo[];
 }
@@ -77,7 +87,7 @@ export interface StatusDeps {
  * Entradas do workspace sem `.workspace.env` são ignoradas quando se lê tudo;
  * quando a branch foi pedida por nome, a ausência é erro.
  *
- * Docker, Portless e git são consultados em lote: o custo não cresce por branch.
+ * Docker, portas, tmux e git são consultados em lote: o custo não cresce por branch.
  */
 export async function runStatus(
   input: StatusInput,
@@ -87,17 +97,17 @@ export async function runStatus(
   const listBranches = deps.listBranches ?? defaultListBranches;
   const readWorkspaceEnv = deps.readWorkspaceEnv ?? defaultReadWorkspaceEnv;
   const listRunningContainers = deps.listRunningContainers ?? defaultListRunningContainers;
-  const listAliases = deps.listAliases ?? defaultListAliases;
+  const listListeningPorts = deps.listListeningPorts ?? defaultListListeningPorts;
+  const listServicePanes = deps.listServicePanes ?? defaultListServicePanes;
   const getBranchFlagsMany = deps.getBranchFlagsMany ?? defaultGetBranchFlagsMany;
   const listBaseRepos = deps.listBaseRepos ?? defaultListBaseRepos;
 
   const names = input.branch ? [input.branch] : listBranches();
-  const [aliases, runningContainers] = await Promise.all([
-    listAliases(),
+  const [listening, panes, runningContainers] = await Promise.all([
+    listListeningPorts(),
+    listServicePanes(),
     listRunningContainers(),
   ]);
-  const isAliasActive = (alias: string) =>
-    aliases.some((a) => a.toLowerCase().includes(alias.toLowerCase()));
 
   const found: Array<{ branch: string; env: WorkspaceEnv }> = [];
 
@@ -125,13 +135,15 @@ export async function runStatus(
 
   const flagsByBranch = await getBranchFlagsMany(found.map(({ branch }) => branch));
 
-  const branches = found.map(({ branch, env }) => {
+  const branches = found.map(({ branch, env }): BranchStatus => {
     const slug = env.BRANCH_SLUG || branch.toLowerCase();
     const backendAlias = `${slug}.api.${PRODUCT_NAME}`;
     const frontendAlias = `${slug}.web.${PRODUCT_NAME}`;
     const managerAlias = `${slug}.manager.${PRODUCT_NAME}`;
     const reportServerAlias = `${slug}.report-server.${PRODUCT_NAME}`;
     const flags = flagsByBranch.get(branch) ?? EMPTY_FLAGS;
+    const stateOf = (id: string, port: number) =>
+      deriveServiceState(listening.has(port), panes.get(resolveServiceSession(slug, id)));
 
     return {
       branch,
@@ -146,11 +158,11 @@ export async function runStatus(
         reportServer: env.REPORT_SERVER_PORT,
       },
       services: {
-        db: runningContainers.includes(env.DB_CONTAINER),
-        backend: isAliasActive(backendAlias),
-        frontend: isAliasActive(frontendAlias),
-        manager: env.MANAGER_PORT ? isAliasActive(managerAlias) : null,
-        reportServer: env.REPORT_SERVER_PORT ? isAliasActive(reportServerAlias) : null,
+        db: runningContainers.includes(env.DB_CONTAINER) ? "rodando" : "parado",
+        backend: stateOf("backend", env.BACKEND_PORT),
+        frontend: stateOf("frontend", env.FRONTEND_PORT),
+        manager: env.MANAGER_PORT ? stateOf("manager", env.MANAGER_PORT) : null,
+        reportServer: env.REPORT_SERVER_PORT ? stateOf("report-server", env.REPORT_SERVER_PORT) : null,
       },
       aliases: {
         backend: backendAlias,
@@ -166,6 +178,18 @@ export async function runStatus(
   });
 
   return { baseRepos: listBaseRepos(), branches };
+}
+
+/**
+ * Rodando é atender na porta, venha o processo de onde vier (sessão tmux, terminal, IDE).
+ * Fora da porta, a sessão tmux diz o resto: painel vivo é Iniciando; painel que terminou com
+ * erro, mantido pelo `remain-on-exit`, é Falhou. Encerrado por alguém, ou sem sessão, é Parado.
+ */
+export function deriveServiceState(listening: boolean, pane: ServicePane | undefined): ServiceState {
+  if (listening) return "rodando";
+  if (pane === "alive") return "iniciando";
+  if (pane === "failed") return "falhou";
+  return "parado";
 }
 
 /** Repos base presentes no disco, na ordem em que uma branch de workspace os tem. */

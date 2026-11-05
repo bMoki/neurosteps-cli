@@ -1,5 +1,6 @@
 import { describe, test, expect, mock, spyOn } from "bun:test";
-import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts, ensureManagementPort } from "../../lib/ports";
+import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts, ensureManagementPort, listListeningPorts } from "../../lib/ports";
+import { createShellResult } from "../setup";
 import * as config from "../../lib/config";
 import * as fs from "fs";
 
@@ -170,5 +171,25 @@ describe("ports", () => {
     fileSpy.mockRestore();
     writeSpy.mockRestore();
     Bun.spawnSync = originalSpawnSync;
+  });
+});
+
+describe("listListeningPorts", () => {
+  test("junta as portas de todos os processos numa chamada só ao lsof", async () => {
+    const run = mock((command: string[]) => Promise.resolve(createShellResult(command, {
+      stdout: "p949\nf12\nn*:8084\nf14\nn127.0.0.1:5438\np1307\nf9\nn[::1]:3015\n",
+    })));
+
+    expect(await listListeningPorts(run)).toEqual(new Set([8084, 5438, 3015]));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test("lsof sem resultado é a lista vazia; com erro no stderr, falha", async () => {
+    const empty = mock((command: string[]) => Promise.resolve(createShellResult(command, { exitCode: 1 })));
+    expect((await listListeningPorts(empty)).size).toBe(0);
+
+    const broken = mock((command: string[]) =>
+      Promise.resolve(createShellResult(command, { exitCode: 1, stderr: "lsof: permissão negada" })));
+    await expect(listListeningPorts(broken)).rejects.toThrow("listar portas em uso");
   });
 });

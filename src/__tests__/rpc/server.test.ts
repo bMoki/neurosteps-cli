@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { z } from "zod";
-import { type PrepareResult, type StatusResult, conflito } from "../../core";
+import { type PrepareResult, type ServicePlan, type StatusResult, conflito } from "../../core";
+import { createShellResult } from "../setup";
 import { type RpcOperations, createRpcOperations, withInput } from "../../rpc/operations";
 import type { RpcOutgoing } from "../../rpc/protocol";
 import { createRpcServer } from "../../rpc/server";
@@ -36,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -113,6 +114,67 @@ describe("ns rpc: protocolo", () => {
     }
   });
 
+  test("start prepara e sobe numa sessão tmux cada Serviço que ainda não atende na porta", async () => {
+    const service: ServicePlan = {
+      id: "backend", label: "Backend", cwd: "/wt/feat/backend", env: {}, command: "mvn quarkus:dev",
+      port: 8084, session: "ns-feat-backend", logFile: "/tmp/ns-rpc-test/feat/backend.log",
+    };
+    const tmux: string[][] = [];
+    const prepared: unknown[] = [];
+    const { send, settle, out } = startServer(createRpcOperations({
+      runPrepare: async (input) => {
+        prepared.push(input);
+        return { ...PREPARED, services: [service, { ...service, id: "frontend", label: "Frontend", port: 3015, session: "ns-feat-frontend" }] };
+      },
+      runTmux: async (command) => {
+        tmux.push(command);
+        return command[1] === "display-message"
+          ? createShellResult(command, { exitCode: 1 })
+          : createShellResult(command);
+      },
+      listListeningPorts: async () => new Set([3015]),
+    }));
+
+    send({ type: "op", id: "r1", op: "start", input: { branch: "feat", installMissingDeps: "always" } });
+    await new Promise((r) => setTimeout(r, 20));
+    await settle();
+
+    expect(prepared).toEqual([{ branch: "feat", installMissingDeps: "always" }]);
+    expect(tmux.map((command) => command[1])).toEqual(["-V", "display-message", "new-session"]);
+    expect(out).toContainEqual({ type: "event", id: "r1", event: { step: "start:backend", label: "Iniciando Backend..." } });
+    expect(out.some((m) => m.type === "event" && m.event.step === "start:frontend")).toBe(false);
+    expect(out.at(-1)).toMatchObject({ type: "result", id: "r1" });
+  });
+
+  test("start sem tmux é pre-condicao e nem prepara a branch", async () => {
+    let called = false;
+    const { send, settle, messagesOf } = startServer(createRpcOperations({
+      runPrepare: async () => { called = true; return PREPARED; },
+      runTmux: async () => { throw new Error("ENOENT"); },
+    }));
+
+    send({ type: "op", id: "r1", op: "start", input: { branch: "feat" } });
+    await settle();
+    await settle();
+
+    expect(called).toBe(false);
+    const [message] = messagesOf("r1");
+    expect(message?.type === "error" && message.error.category).toBe("pre-condicao");
+  });
+
+  test("stop repassa a branch ao núcleo", async () => {
+    const calls: unknown[] = [];
+    const { send, settle, out } = startServer(createRpcOperations({
+      runStop: async (input) => { calls.push(input); return { branch: input.branch }; },
+    }));
+
+    send({ type: "op", id: "r1", op: "stop", input: { branch: "feat" } });
+    await settle();
+
+    expect(calls).toEqual([{ branch: "feat" }]);
+    expect(out).toEqual([{ type: "result", id: "r1", result: { branch: "feat" } }]);
+  });
+
   test("linha que não é JSON vira erro de protocolo sem id e o servidor segue atendendo", async () => {
     const { server, send, settle, out } = startServer(createRpcOperations({ runStatus: async () => STATUS }));
 
@@ -140,8 +202,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop." } },
     ]);
   });
 

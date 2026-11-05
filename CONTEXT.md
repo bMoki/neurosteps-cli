@@ -23,6 +23,9 @@ Um processo que precisa estar no ar para uma branch funcionar (backend, frontend
 
 Nenhum adapter é dono de um serviço: qualquer um pode encontrá-lo, acompanhá-lo, interagir com ele e pará-lo, inclusive um adapter que nem existia quando o serviço subiu. **Sair de um adapter nunca encerra um serviço** — vale igualmente para fechar a aba do browser e para fechar a janela do terminal. Parar um serviço é sempre um ato explícito.
 
+### Estado de serviço
+Em que situação um serviço está: **Rodando** quando atende na sua porta, venha de onde vier; **Iniciando** quando a sessão tmux dele está viva mas a porta ainda não responde; **Falhou** quando o processo terminou sem ser parado (a sessão fica aberta com a saída do erro); **Parado** quando não há porta nem sessão. O banco só tem Rodando e Parado.
+
 ### Plano de serviços
 A lista de serviços que uma branch precisa ter no ar (backend, frontend, manager, report-server), cada um descrito por rótulo, diretório, variáveis de ambiente e comando, mais o nome da sessão tmux e o arquivo de log onde o serviço roda e grava a saída. É um **dado**: não executa nada, mas fixa esses dois endereços para que qualquer adapter encontre o mesmo serviço.
 

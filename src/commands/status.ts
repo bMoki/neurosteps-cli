@@ -1,18 +1,22 @@
 import { Command } from "commander";
-import { listBranches as defaultListBranches } from "../lib/config";
-import { detail, emptyLine, error, heading, ok, warn, colors } from "../lib/logger";
+import { listBranches as defaultListBranches, resolveServiceLogFile } from "../lib/config";
+import { detail, emptyLine, error, heading, info, ok, warn, colors } from "../lib/logger";
 import { STALE_BRANCH_FLAG } from "../lib/branch-flags";
-import { type BranchStatus, type NsError, createSilentContext, isNsError, runStatus } from "../core";
+import {
+  type BranchStatus,
+  type NsError,
+  type ServiceId,
+  type ServiceState,
+  createSilentContext,
+  isNsError,
+  runStatus,
+} from "../core";
 
 const BRANCH_COLUMN_WIDTH = 14;
 
 export interface CompactStatusRow {
   branch: string;
-  dbRunning: boolean;
-  backendRunning: boolean;
-  frontendRunning: boolean;
-  managerRunning: boolean | null;
-  reportServerRunning: boolean | null;
+  services: BranchStatus["services"];
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
@@ -32,11 +36,7 @@ export function formatCompactBranchName(branch: string): string {
 }
 
 export function isCompactStatusRowFullyOff(row: CompactStatusRow): boolean {
-  return !row.dbRunning
-    && !row.backendRunning
-    && !row.frontendRunning
-    && row.managerRunning !== true
-    && row.reportServerRunning !== true;
+  return Object.values(row.services).every((state) => state === null || state === "parado");
 }
 
 export function sortCompactStatusRows(rows: CompactStatusRow[]): CompactStatusRow[] {
@@ -52,11 +52,7 @@ export function sortCompactStatusRows(rows: CompactStatusRow[]): CompactStatusRo
 export function toCompactRow(status: BranchStatus): CompactStatusRow {
   return {
     branch: status.branch,
-    dbRunning: status.services.db,
-    backendRunning: status.services.backend,
-    frontendRunning: status.services.frontend,
-    managerRunning: status.services.manager,
-    reportServerRunning: status.services.reportServer,
+    services: status.services,
     flags: status.flags,
     stale: status.stale,
     lastCommitAt: status.lastCommitAt,
@@ -107,13 +103,30 @@ async function showCompactStatus(
   renderCompactStatus((await readStatus()).map(toCompactRow), plain);
 }
 
+const PLAIN_STATE: Record<ServiceState, string> = {
+  parado: "off",
+  iniciando: "starting",
+  rodando: "on",
+  falhou: "failed",
+};
+
+const STATE_SYMBOL: Record<ServiceState, () => string> = {
+  parado: () => colors.muted("○"),
+  iniciando: () => colors.warn("◐"),
+  rodando: () => colors.ok("●"),
+  falhou: () => colors.err("✕"),
+};
+
+const plainState = (state: ServiceState | null) => (state === null ? "n/a" : PLAIN_STATE[state]);
+const stateSymbol = (state: ServiceState | null) => (state === null ? colors.muted("—") : STATE_SYMBOL[state]());
+
 export function renderCompactStatus(rows: CompactStatusRow[], plain = false): void {
   if (plain) {
     console.log("branch\tdb\tbackend\tfrontend\tmanager\treport-server\tflags");
     for (const row of sortCompactStatusRows(rows)) {
-      const mgr = row.managerRunning === null ? "n/a" : row.managerRunning ? "on" : "off";
-      const rs = row.reportServerRunning === null ? "n/a" : row.reportServerRunning ? "on" : "off";
-      console.log(`${row.branch}\t${row.dbRunning ? "on" : "off"}\t${row.backendRunning ? "on" : "off"}\t${row.frontendRunning ? "on" : "off"}\t${mgr}\t${rs}\t${row.flags.join(",")}`);
+      const { db, backend, frontend, manager, reportServer } = row.services;
+      const states = [db, backend, frontend, manager, reportServer].map(plainState);
+      console.log([row.branch, ...states, row.flags.join(",")].join("\t"));
     }
     return;
   }
@@ -122,20 +135,13 @@ export function renderCompactStatus(rows: CompactStatusRow[], plain = false): vo
   console.log(colors.muted("  ──────────────┼───────┼─────────┼──────────┼─────────┼────────┼──────"));
 
   for (const row of sortCompactStatusRows(rows)) {
-    const dbStatus = row.dbRunning ? colors.ok("●") : colors.err("○");
-    const backendStatus = row.backendRunning ? colors.ok("●") : colors.err("○");
-    const frontendStatus = row.frontendRunning ? colors.ok("●") : colors.err("○");
-    const managerStatus = row.managerRunning === null
-      ? colors.muted("—")
-      : row.managerRunning ? colors.ok("●") : colors.err("○");
-    const reportServerStatus = row.reportServerRunning === null
-      ? colors.muted("—")
-      : row.reportServerRunning ? colors.ok("●") : colors.err("○");
+    const { db, backend, frontend, manager, reportServer } = row.services;
     const flags = row.flags.includes(STALE_BRANCH_FLAG) ? colors.warn(STALE_BRANCH_FLAG) : colors.muted("—");
 
     const name = formatCompactBranchName(row.branch);
-    console.log(`  ${name}│  ${dbStatus}    │    ${backendStatus}    │     ${frontendStatus}    │   ${managerStatus}    │   ${reportServerStatus}    │ ${flags}`);
+    console.log(`  ${name}│  ${stateSymbol(db)}    │    ${stateSymbol(backend)}    │     ${stateSymbol(frontend)}    │   ${stateSymbol(manager)}    │   ${stateSymbol(reportServer)}    │ ${flags}`);
   }
+  console.log(colors.muted(`\n  ${STATE_SYMBOL.rodando()} Rodando  ${STATE_SYMBOL.iniciando()} Iniciando  ${STATE_SYMBOL.falhou()} Falhou  ${STATE_SYMBOL.parado()} Parado`));
   console.log();
 }
 
@@ -148,6 +154,7 @@ export interface StatusJsonRow {
   frontend: boolean;
   manager: boolean | null;
   reportServer: boolean | null;
+  states: BranchStatus["services"];   // os quatro Estados; os booleanos acima são "está Rodando"
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
@@ -158,14 +165,21 @@ export interface StatusJsonError {
   error: { category: string; message: string; hint?: string };
 }
 
+function isRunning(state: ServiceState): boolean;
+function isRunning(state: ServiceState | null): boolean | null;
+function isRunning(state: ServiceState | null): boolean | null {
+  return state === null ? null : state === "rodando";
+}
+
 export function toStatusJsonRow(status: BranchStatus): StatusJsonRow {
   return {
     branch: status.branch,
-    db: status.services.db,
-    backend: status.services.backend,
-    frontend: status.services.frontend,
-    manager: status.services.manager,
-    reportServer: status.services.reportServer,
+    db: status.services.db === "rodando",
+    backend: isRunning(status.services.backend),
+    frontend: isRunning(status.services.frontend),
+    manager: isRunning(status.services.manager),
+    reportServer: isRunning(status.services.reportServer),
+    states: status.services,
     flags: status.flags,
     stale: status.stale,
     lastCommitAt: status.lastCommitAt,
@@ -232,43 +246,36 @@ export function renderBranchDetail(status: BranchStatus, plain = false): void {
     }
   }
 
-  if (status.services.db) {
+  if (status.services.db === "rodando") {
     ok(`DB rodando (${status.dbContainer})`);
   } else {
     warn("DB parado");
   }
 
-  if (status.services.backend) {
-    ok(`Backend ativo (${status.aliases.backend})`);
-  } else {
-    warn("Backend sem alias Portless");
-  }
-
-  if (status.services.frontend) {
-    ok(`Frontend ativo (${status.aliases.frontend})`);
-  } else {
-    warn("Frontend sem alias Portless");
-  }
-
-  if (status.ports.manager) {
-    if (status.services.manager) {
-      ok(`Manager ativo (${status.aliases.manager})`);
-    } else {
-      warn("Manager sem alias Portless");
-    }
-  }
-
-  if (status.ports.reportServer) {
-    if (status.services.reportServer) {
-      ok(`Report-server ativo (${status.aliases.reportServer})`);
-    } else {
-      warn("Report-server sem alias Portless");
-    }
-  }
+  for (const service of DETAIL_SERVICES) renderServiceState(status, service);
 
   if (status.stale) {
     warn(`Flag ${STALE_BRANCH_FLAG}: sem commit e sem uso da CLI há mais de 7 dias`);
   }
+}
+
+type ServiceKey = Exclude<keyof BranchStatus["services"], "db">;
+
+const DETAIL_SERVICES: Array<{ key: ServiceKey; id: ServiceId; label: string }> = [
+  { key: "backend", id: "backend", label: "Backend" },
+  { key: "frontend", id: "frontend", label: "Frontend" },
+  { key: "manager", id: "manager", label: "Manager" },
+  { key: "reportServer", id: "report-server", label: "Report-server" },
+];
+
+function renderServiceState(status: BranchStatus, { key, id, label }: (typeof DETAIL_SERVICES)[number]): void {
+  const state = status.services[key];
+  const alias = status.aliases[key];
+  if (state === null) return;
+  if (state === "rodando") ok(`${label} rodando (${alias})`);
+  else if (state === "iniciando") info(`${label} iniciando: a porta ainda não responde`);
+  else if (state === "falhou") error(`${label} falhou. Log: ${resolveServiceLogFile(status.branch, id)}`);
+  else warn(`${label} parado`);
 }
 
 async function showAllStatus(

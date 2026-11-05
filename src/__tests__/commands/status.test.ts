@@ -17,11 +17,7 @@ import { PRODUCT_NAME } from "../../lib/config";
 function row(overrides: Partial<CompactStatusRow>): CompactStatusRow {
   return {
     branch: "branch",
-    dbRunning: false,
-    backendRunning: false,
-    frontendRunning: false,
-    managerRunning: null,
-    reportServerRunning: null,
+    services: { db: "parado", backend: "parado", frontend: "parado", manager: null, reportServer: null },
     flags: [],
     stale: false,
     lastCommitAt: null,
@@ -37,7 +33,7 @@ function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
     path: "/tmp/worktrees/feat-123",
     dbContainer: "myapp-psql-feat-123",
     ports: { db: 5438, backend: 8084, frontend: 3015 },
-    services: { db: true, backend: true, frontend: false, manager: null, reportServer: null },
+    services: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
     aliases: { backend: `feat-123.api.${PRODUCT_NAME}`, frontend: `feat-123.web.${PRODUCT_NAME}` },
     flags: [],
     stale: false,
@@ -109,22 +105,27 @@ describe("status compact helpers", () => {
       }),
       row({
         branch: "partial",
-        backendRunning: true,
+        services: { ...row({}).services, backend: "rodando" },
       }),
       row({
-        branch: "active-manager",
-        managerRunning: true,
+        branch: "failed-manager",
+        services: { ...row({}).services, manager: "falhou" },
       }),
       row({
         branch: "inactive-manager",
-        managerRunning: false,
+        services: { ...row({}).services, manager: "parado" },
+      }),
+      row({
+        branch: "starting",
+        services: { ...row({}).services, frontend: "iniciando" },
       }),
     ];
 
     expect(isCompactStatusRowFullyOff(rows[0]!)).toBe(true);
     expect(sortCompactStatusRows(rows).map((row) => row.branch)).toEqual([
       "partial",
-      "active-manager",
+      "failed-manager",
+      "starting",
       "inactive-no-manager",
       "inactive-manager",
     ]);
@@ -134,11 +135,7 @@ describe("status compact helpers", () => {
   test("toCompactRow achata os serviços do núcleo", () => {
     expect(toCompactRow(status({ flags: ["stale"], stale: true }))).toEqual({
       branch: "feat-123",
-      dbRunning: true,
-      backendRunning: true,
-      frontendRunning: false,
-      managerRunning: null,
-      reportServerRunning: null,
+      services: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
       flags: ["stale"],
       stale: true,
       lastCommitAt: null,
@@ -148,17 +145,30 @@ describe("status compact helpers", () => {
 });
 
 describe("tabela compacta", () => {
-  test("--plain emite cabeçalho e uma linha por branch, com n/a para serviço ausente", async () => {
+  test("--plain emite cabeçalho e uma linha por branch, com os quatro estados e n/a para serviço ausente", async () => {
     const { out } = await run(["--plain"], {
       readStatus: async () => [
         status(),
-        status({ branch: "outra", services: { db: false, backend: false, frontend: false, manager: true, reportServer: false } }),
+        status({ branch: "outra", services: { db: "parado", backend: "iniciando", frontend: "falhou", manager: "rodando", reportServer: "parado" } }),
       ],
     });
 
     expect(out[0]).toBe("branch\tdb\tbackend\tfrontend\tmanager\treport-server\tflags");
     expect(out).toContain("feat-123\ton\ton\toff\tn/a\tn/a\t");
-    expect(out).toContain("outra\toff\toff\toff\ton\toff\t");
+    expect(out).toContain("outra\toff\tstarting\tfailed\ton\toff\t");
+  });
+
+  test("tabela mostra um símbolo por estado e a legenda", async () => {
+    const { out } = await run([], {
+      readStatus: async () => [
+        status({ services: { db: "rodando", backend: "iniciando", frontend: "falhou", manager: "parado", reportServer: null } }),
+      ],
+    });
+
+    const line = out.find((l) => l.includes("feat-123"))!;
+    for (const symbol of ["●", "◐", "✕", "○", "—"]) expect(line).toContain(symbol);
+    expect(out.join("\n")).toContain("Rodando");
+    expect(out.join("\n")).toContain("Falhou");
   });
 
   test("--plain junta as flags por vírgula", () => {
@@ -172,7 +182,7 @@ describe("tabela compacta", () => {
     const { out } = await run([], {
       listBranches: () => ["ligada", "desligada"],
       readStatus: async () => [
-        status({ branch: "desligada", services: { db: false, backend: false, frontend: false, manager: null, reportServer: null } }),
+        status({ branch: "desligada", services: { db: "parado", backend: "parado", frontend: "parado", manager: null, reportServer: null } }),
         status({ branch: "ligada" }),
       ],
     });
@@ -212,11 +222,26 @@ describe("--json", () => {
       frontend: false,
       manager: null,
       reportServer: null,
+      states: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
       flags: [],
       stale: false,
       lastCommitAt: null,
       lastCliUsedAt: null,
     });
+  });
+
+  test("os booleanos dizem só se está Rodando; os estados vão em states", async () => {
+    const { stdout } = await run(["--json", "feat-123"], {
+      readStatus: async () => [status({
+        ports: { db: 5438, backend: 8084, frontend: 3015, manager: 3021 },
+        services: { db: "parado", backend: "iniciando", frontend: "falhou", manager: "rodando", reportServer: null },
+      })],
+    });
+
+    const parsed = JSON.parse(stdout);
+    expect([parsed.db, parsed.backend, parsed.frontend, parsed.manager, parsed.reportServer])
+      .toEqual([false, false, false, true, null]);
+    expect(parsed.states.frontend).toBe("falhou");
   });
 
   test("branch inexistente vira documento de erro, não null", async () => {
@@ -291,21 +316,23 @@ describe("detalhe de uma branch", () => {
     const stderr = captured.err.join("\n");
     expect(stderr).toContain("Branch: feat-123");
     expect(stderr).toContain("DB rodando (myapp-psql-feat-123)");
-    expect(stderr).toContain(`Backend ativo (feat-123.api.${PRODUCT_NAME})`);
-    expect(stderr).toContain("Frontend sem alias Portless");
+    expect(stderr).toContain(`Backend rodando (feat-123.api.${PRODUCT_NAME})`);
+    expect(stderr).toContain("Frontend parado");
   });
 
-  test("avisa DB parado e serviços sem alias", () => {
+  test("nomeia cada estado e aponta o log de quem falhou", () => {
     captured = captureOutput();
     renderBranchDetail(status({
       ports: { db: 5438, backend: 8084, frontend: 3015, manager: 3021, reportServer: 9001 },
-      services: { db: false, backend: false, frontend: false, manager: false, reportServer: false },
+      services: { db: "parado", backend: "iniciando", frontend: "falhou", manager: "parado", reportServer: "parado" },
     }));
 
-    const stderr = captured.err.join("\n");
+    const stderr = captured.err.join("\n") + captured.out.join("\n");
     expect(stderr).toContain("DB parado");
-    expect(stderr).toContain("Manager sem alias Portless");
-    expect(stderr).toContain("Report-server sem alias Portless");
+    expect(stderr).toContain("Backend iniciando");
+    expect(stderr).toMatch(/Frontend falhou\. Log: .*\/feat-123\/frontend\.log/);
+    expect(stderr).toContain("Manager parado");
+    expect(stderr).toContain("Report-server parado");
   });
 
   test("reporta a flag stale", () => {

@@ -64,6 +64,8 @@ Vira só apresentação. Os quatro renderizadores atuais continuam existindo e p
 
 `sortCompactStatusRows`, `isCompactStatusRowFullyOff` e `formatCompactBranchName` são **regras de apresentação** — ficam no adapter, não no núcleo.
 
+> **Mudança posterior (Estados de Serviço, ticket 08 do Thalamus):** `services` passou a trazer os quatro Estados (`parado`, `iniciando`, `rodando`, `falhou`), lidos da porta e da sessão tmux em vez do alias Portless. No `--json`, as chaves booleanas continuam e querem dizer "está Rodando" (atende na porta); a chave nova `states` traz os quatro Estados. O `--plain` ganhou `starting` e `failed`, e o detalhe da branch diz "rodando/iniciando/falhou/parado".
+
 ⚠️ **`--json` já é contrato público.** As chaves atuais (`db`, `backend`, `frontend`, `reportServer`, `stale`, `lastCommitAt`, `lastCliUsedAt`) e o formato "objeto quando tem branch, array quando não tem" precisam continuar iguais. O mapeamento de `BranchStatus` para esse formato fica no comando, não no núcleo — o núcleo tem a forma que faz sentido para ele, o adapter tem a forma que já foi prometida.
 
 ## `src/core/index.ts`

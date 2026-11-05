@@ -2,7 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { STATE_DIR } from "../../lib/config";
-import { attachCommand, hasTmux, startService, stopService, type ServiceSession } from "../../lib/services";
+import { attachCommand, hasTmux, listServicePanes, startService, stopService, type ServiceSession } from "../../lib/services";
 import { createShellResult } from "../setup";
 
 const service = (logFile: string): ServiceSession => ({
@@ -106,4 +106,27 @@ describe("hasTmux", () => {
 
 test("attachCommand abre uma vista da sessão", () => {
   expect(attachCommand("ns-feat-123-backend")).toBe("tmux attach-session -t ns-feat-123-backend");
+});
+
+describe("listServicePanes", () => {
+  test("lê o painel de cada sessão numa chamada só; saída 0 ou Ctrl-C não é falha", async () => {
+    const run = mock((command: string[]) => Promise.resolve(createShellResult(command, {
+      stdout: "ns-feat-123-backend:0:\nns-feat-123-frontend:1:1\nns-feat-123-manager:1:130\nns-feat-123-report-server:1:0\n",
+    })));
+
+    expect(await listServicePanes(run)).toEqual(new Map([
+      ["ns-feat-123-backend", "alive"],
+      ["ns-feat-123-frontend", "failed"],
+      ["ns-feat-123-manager", "exited"],
+      ["ns-feat-123-report-server", "exited"],
+    ]));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test("sem servidor tmux ou sem tmux não há sessão", async () => {
+    const noServer = mock((command: string[]) =>
+      Promise.resolve(createShellResult(command, { exitCode: 1, stderr: "no server running" })));
+    expect((await listServicePanes(noServer)).size).toBe(0);
+    expect((await listServicePanes(mock(() => Promise.reject(new Error("ENOENT"))))).size).toBe(0);
+  });
 });

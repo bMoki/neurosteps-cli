@@ -66,6 +66,8 @@ Nada além de mensagens do protocolo sai no stdout. Logs e diagnósticos vão pa
 
 Só operações já migradas para o núcleo. A primeira é `status`. Cada operação que migrar entra no registro do `ns rpc` com o schema do seu input; a superfície continua sendo a da decisão 6 da ADR 0002.
 
+`start` é a exceção que confirma a regra: é `prepare` mais a execução do Plano de serviços em sessões tmux, pelo mesmo helper que o `ns start` usa. Executar o plano é papel de adapter (o núcleo só o devolve), e o `ns rpc` é um adapter. Sem tmux, `start` responde `pre-condicao` antes de preparar, porque um Serviço que morre junto com o cliente contraria a regra de que ninguém é dono de um Serviço.
+
 ## Consequências
 
 **Positivas**
