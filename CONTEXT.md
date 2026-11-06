@@ -7,6 +7,10 @@ Glossário da linguagem do domínio. Apenas termos e seus significados — sem d
 ### Branch (de workspace)
 Um ambiente de trabalho isolado para uma branch git: árvore de trabalho própria e um banco PostgreSQL próprio. Cada branch tem o seu banco, independente das demais.
 
+### Apelido (nickname)
+Um nome humano dado a uma branch de workspace para encontrá-la com facilidade (ex.: `agenda-recorrente` para `NS-1433`). É só um rótulo para ver: não muda o nome da branch, a pasta, o banco, as portas nem as URLs, e não substitui o nome da branch nos comandos. Não precisa ser único, e some junto com a branch.
+_Evitar:_ "slug" (é o identificador derivado do nome da branch, usado no banco, no tmux e nas URLs), "alias" (são os endereços do Portless), "label".
+
 ### Snapshot
 Uma cópia salva do estado do banco de uma branch, tirada num momento específico. Um snapshot **pertence** à branch que o criou (sua **branch de origem**), e seu nome é único dentro dela. Remover a branch pode levar os snapshots junto ou deixá-los como **snapshots órfãos**.
 

@@ -18,6 +18,7 @@ import {
   runPull as defaultRunPull,
   runRm as defaultRunRm,
   runRmPreview as defaultRunRmPreview,
+  runSetNickname as defaultRunSetNickname,
   runStatus as defaultRunStatus,
   runStop as defaultRunStop,
   servicesToStart,
@@ -64,6 +65,7 @@ export interface RpcOperationDeps {
   runDbSnapshot: typeof defaultRunDbSnapshot;
   runDbRestore: typeof defaultRunDbRestore;
   runDbRmSnapshot: typeof defaultRunDbRmSnapshot;
+  runSetNickname: typeof defaultRunSetNickname;
   runTmux: typeof exec;
   listListeningPorts: () => Promise<Set<number>>;
 }
@@ -83,6 +85,7 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runDbSnapshot = deps.runDbSnapshot ?? defaultRunDbSnapshot;
   const runDbRestore = deps.runDbRestore ?? defaultRunDbRestore;
   const runDbRmSnapshot = deps.runDbRmSnapshot ?? defaultRunDbRmSnapshot;
+  const runSetNickname = deps.runSetNickname ?? defaultRunSetNickname;
   const runTmux = deps.runTmux ?? exec;
   const listening = deps.listListeningPorts ?? (() => listListeningPorts());
   const installMissingDeps = z.enum(["always", "ask", "never"]).default("ask");
@@ -156,6 +159,11 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     dbRmSnapshot: withInput(
       z.strictObject({ branch: z.string().min(1), name: z.string().min(1) }),
       (input, ctx) => runDbRmSnapshot(input, ctx),
+    ),
+    // Vazio tira o Apelido; o tamanho é conferido pelo núcleo, depois de normalizar.
+    setNickname: withInput(
+      z.strictObject({ branch: z.string().min(1), nickname: z.string() }),
+      (input, ctx) => runSetNickname(input, ctx),
     ),
   };
 }

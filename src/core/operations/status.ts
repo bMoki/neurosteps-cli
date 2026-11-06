@@ -30,6 +30,7 @@ import {
 import type { NsContext } from "../context";
 import type { ServiceId } from "./prepare";
 import { naoEncontrado } from "../errors";
+import { readNickname as defaultReadNickname } from "./nickname";
 
 export interface StatusInput {
   branch?: string;   // ausente = todas as branches
@@ -46,6 +47,7 @@ export type ServiceKey = "backend" | "frontend" | "manager" | "reportServer";
 
 export interface BranchStatus {
   branch: string;
+  nickname: string | null;            // Apelido dado à branch, só para ver
   slug: string;
   path: string;                       // WORKTREES_DIR/<branch>
   dbContainer: string;
@@ -104,6 +106,7 @@ export interface StatusDeps {
   listBaseRepos: () => BaseRepo[];
   readServiceError: (branch: string, id: ServiceId) => Promise<string | null>;
   readRepoCheckouts: (branchPath: string) => Promise<RepoCheckout[]>;
+  readNickname: (branch: string) => Promise<string | null>;
 }
 
 /**
@@ -128,6 +131,7 @@ export async function runStatus(
   const readServiceError = deps.readServiceError
     ?? ((branch: string, id: ServiceId) => lastErrorLine(resolveServiceLogFile(branch, id)));
   const readRepoCheckouts = deps.readRepoCheckouts ?? defaultReadRepoCheckouts;
+  const readNickname = deps.readNickname ?? defaultReadNickname;
 
   const names = input.branch ? [input.branch] : listBranches();
   const [listening, panes, runningContainers] = await Promise.all([
@@ -188,6 +192,7 @@ export async function runStatus(
 
     return {
       branch,
+      nickname: await readNickname(branch),
       slug,
       path,
       dbContainer: env.DB_CONTAINER,

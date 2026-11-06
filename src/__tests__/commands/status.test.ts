@@ -29,6 +29,7 @@ function row(overrides: Partial<CompactStatusRow>): CompactStatusRow {
 function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
   return {
     branch: "feat-123",
+    nickname: null,
     slug: "feat-123",
     path: "/tmp/worktrees/feat-123",
     dbContainer: "myapp-psql-feat-123",

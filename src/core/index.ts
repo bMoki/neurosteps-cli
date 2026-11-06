@@ -68,3 +68,6 @@ export type {
   SnapshotGroup,
 } from "./operations/snapshot";
 export { runDbRestore, runDbRestorePreview, runDbRmSnapshot, runDbSnapshot, runDbSnapshotFind, runDbSnapshots, snapshotFile } from "./operations/snapshot";
+
+export type { NicknameDeps, SetNicknameInput, SetNicknameResult } from "./operations/nickname";
+export { NICKNAME_MAX_LENGTH, normalizeNickname, readNickname, runSetNickname } from "./operations/nickname";

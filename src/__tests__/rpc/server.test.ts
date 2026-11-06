@@ -37,7 +37,7 @@ describe("ns rpc: protocolo", () => {
 
     server.ready();
 
-    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm", "dbOpen", "dbSnapshots", "dbSnapshot", "dbRestore", "dbRmSnapshot"] }]);
+    expect(out).toEqual([{ type: "ready", protocol: 1, ops: ["status", "prepare", "start", "stop", "new", "addRepo", "pull", "rmPreview", "rm", "dbOpen", "dbSnapshots", "dbSnapshot", "dbRestore", "dbRmSnapshot", "setNickname"] }]);
   });
 
   test("status devolve o resultado do núcleo correlacionado ao id, repassando o input e o progresso", async () => {
@@ -263,6 +263,23 @@ describe("ns rpc: protocolo", () => {
     });
   });
 
+  test("setNickname repassa o Apelido ao núcleo e exige o texto, mesmo vazio", async () => {
+    const calls: unknown[] = [];
+    const { send, settle, out, messagesOf } = startServer(createRpcOperations({
+      runSetNickname: async (input) => { calls.push(input); return { branch: input.branch, nickname: input.nickname.trim() || null }; },
+    }));
+
+    send({ type: "op", id: "r1", op: "setNickname", input: { branch: "feat", nickname: " Agenda " } });
+    send({ type: "op", id: "r2", op: "setNickname", input: { branch: "feat", nickname: "" } });
+    send({ type: "op", id: "r3", op: "setNickname", input: { branch: "feat" } });
+    await settle();
+
+    expect(calls).toEqual([{ branch: "feat", nickname: " Agenda " }, { branch: "feat", nickname: "" }]);
+    expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat", nickname: "Agenda" } });
+    expect(out).toContainEqual({ type: "result", id: "r2", result: { branch: "feat", nickname: null } });
+    expect(messagesOf("r3")[0]).toMatchObject({ type: "error", error: { category: "protocolo" } });
+  });
+
   test("addRepo inclui de novo um Repo numa branch que já existe", async () => {
     const calls: unknown[] = [];
     const { send, settle, out } = startServer(createRpcOperations({
@@ -393,8 +410,8 @@ describe("ns rpc: protocolo", () => {
     send({ type: "op", id: "r2", op: "toString" });
 
     expect(out).toEqual([
-      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot." } },
-      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot." } },
+      { type: "error", id: "r1", error: { category: "protocolo", message: "Operação desconhecida: 'deploy'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot, setNickname." } },
+      { type: "error", id: "r2", error: { category: "protocolo", message: "Operação desconhecida: 'toString'.", hint: "Operações disponíveis: status, prepare, start, stop, new, addRepo, pull, rmPreview, rm, dbOpen, dbSnapshots, dbSnapshot, dbRestore, dbRmSnapshot, setNickname." } },
     ]);
   });
 

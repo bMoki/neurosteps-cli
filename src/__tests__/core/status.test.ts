@@ -34,6 +34,7 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
       Promise.resolve(new Map(branches.map((branch) => [branch, NO_FLAGS])))),
     listBaseRepos: mock(() => []),
     readRepoCheckouts: mock(() => Promise.resolve([])),
+    readNickname: mock(() => Promise.resolve(null)),
     ...overrides,
   };
 }
@@ -120,6 +121,18 @@ describe("runStatus", () => {
     } finally {
       rmSync(folder, { recursive: true, force: true });
     }
+  });
+
+  test("devolve o Apelido de cada branch, ou null sem Apelido", async () => {
+    const result = await runStatus({}, createSilentContext(), createDeps({
+      listBranches: mock(() => ["NS-1433", "NS-1418"]),
+      readNickname: mock((branch: string) => Promise.resolve(branch === "NS-1433" ? "Agenda recorrente" : null)),
+    }));
+
+    expect(result.branches.map(({ branch, nickname }) => [branch, nickname])).toEqual([
+      ["NS-1433", "Agenda recorrente"],
+      ["NS-1418", null],
+    ]);
   });
 
   test("serviço ausente na branch vira null, não false", async () => {
