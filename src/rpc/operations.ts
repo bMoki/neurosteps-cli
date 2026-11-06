@@ -117,6 +117,7 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
         baseBranch: z.string().min(1).optional(),
         repos: z.array(z.enum(OPTIONAL_REPOS)).default(["manager"]),
         installMissingDeps,
+        nickname: z.string().optional(),
       }),
       (input, ctx) => runNew(input, ctx),
     ),

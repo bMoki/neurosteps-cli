@@ -224,7 +224,7 @@ describe("ns rpc: protocolo", () => {
     expect(out).toContainEqual({ type: "result", id: "r1", result: { branch: "feat" } });
   });
 
-  test("new repassa os Repos opcionais, o progresso e o resultado; sem repos inclui o manager", async () => {
+  test("new repassa os Repos opcionais, o Apelido, o progresso e o resultado; sem repos inclui o manager", async () => {
     const calls: unknown[] = [];
     const created = { branch: "feat", repos: ["manager"], missingRepos: [] };
     const { send, settle, out } = startServer(createRpcOperations({
@@ -236,12 +236,12 @@ describe("ns rpc: protocolo", () => {
     }));
 
     send({ type: "op", id: "r1", op: "new", input: { branch: "feat", repos: ["report-server", "parents"], installMissingDeps: "never" } });
-    send({ type: "op", id: "r2", op: "new", input: { branch: "feat", baseBranch: "develop" } });
+    send({ type: "op", id: "r2", op: "new", input: { branch: "feat", baseBranch: "develop", nickname: "Agenda" } });
     await settle();
 
     expect(calls).toEqual([
       { branch: "feat", repos: ["report-server", "parents"], installMissingDeps: "never" },
-      { branch: "feat", baseBranch: "develop", repos: ["manager"], installMissingDeps: "ask" },
+      { branch: "feat", baseBranch: "develop", repos: ["manager"], installMissingDeps: "ask", nickname: "Agenda" },
     ]);
     expect(out).toContainEqual({ type: "event", id: "r1", event: { step: "new:add:parents", label: "Incluindo parents..." } });
     expect(out).toContainEqual({ type: "result", id: "r1", result: created });

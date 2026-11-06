@@ -1,5 +1,5 @@
 import { describe, test, expect, mock } from "bun:test";
-import { type AddRepoInput, type NsContext, type NsProgressEvent, type OptionalRepo, createSilentContext, naoEncontrado, runNew } from "../../core";
+import { type AddRepoInput, type NsContext, type NsProgressEvent, type OptionalRepo, type SetNicknameInput, createSilentContext, naoEncontrado, runNew } from "../../core";
 import { createShellResult } from "../setup";
 
 const prepared = {
@@ -28,6 +28,7 @@ describe("runNew", () => {
     hooks: mock(() => Promise.resolve()),
     addRepo: mock((input: AddRepoInput, _ctx: NsContext) => Promise.resolve({ branch: input.branch, repo: input.repo, path: "" })),
     prepare: mock(() => Promise.resolve(prepared)),
+    setNickname: mock((input: SetNicknameInput, _ctx: NsContext) => Promise.resolve({ branch: input.branch, nickname: input.nickname })),
   });
 
   const run = (mocks: ReturnType<typeof createMocks>, repos: OptionalRepo[] = [], baseBranch = "master") =>
@@ -282,6 +283,58 @@ describe("runNew", () => {
       expect(mocks.markTouched).toHaveBeenCalledWith("feat-123", "new");
       expect(mocks.prepare).toHaveBeenCalled();
     });
+  });
+
+  test("gives the nickname right after the branch exists, before the optional repos, and keeps it if one fails", async () => {
+    const mocks = createMocks();
+    const order: string[] = [];
+    mocks.copyTpl = mock((_src: string, dst: string) => { if (dst.endsWith(".workspace.env")) order.push("workspace.env"); return Promise.resolve(); });
+    mocks.setNickname = mock((input: SetNicknameInput) => { order.push("nickname"); return Promise.resolve({ branch: input.branch, nickname: input.nickname }); });
+    mocks.hooks = mock(() => { order.push("hooks"); return Promise.resolve(); });
+    mocks.addRepo = mock(() => { order.push("addRepo"); return Promise.reject(new Error("fatal: could not read from remote repository")); }) as any;
+    await withWorkspaceFiles(async () => {
+      const result = await runNew(
+        { branch: "feat-123", repos: ["parents"], installMissingDeps: "never", nickname: "  Guia TISS em lote \n" },
+        createSilentContext(),
+        mocks,
+      );
+
+      expect(result.missingRepos.map(({ repo }) => repo)).toEqual(["parents"]);
+    });
+    expect(mocks.setNickname.mock.calls.map(([input]) => input)).toEqual([{ branch: "feat-123", nickname: "Guia TISS em lote" }]);
+    expect(order).toEqual(["workspace.env", "nickname", "hooks", "addRepo"]);
+  });
+
+  test("goes on without the nickname when it can't be written", async () => {
+    const mocks = createMocks();
+    mocks.setNickname = mock(() => Promise.reject(new Error("EACCES: permission denied"))) as any;
+    await withWorkspaceFiles(async () => {
+      const result = await runNew({ branch: "feat-123", repos: [], installMissingDeps: "never", nickname: "Agenda" }, createSilentContext(), mocks);
+
+      expect(result.prepared).toBe(prepared);
+    });
+    expect(mocks.hooks).toHaveBeenCalled();
+  });
+
+  test("creates the branch without a nickname when none or a blank one is given", async () => {
+    const mocks = createMocks();
+    await withWorkspaceFiles(async () => {
+      await run(mocks, []);
+      await runNew({ branch: "feat-123", repos: [], installMissingDeps: "never", nickname: "   " }, createSilentContext(), mocks);
+    });
+    expect(mocks.setNickname).not.toHaveBeenCalled();
+  });
+
+  test("refuses a nickname over 40 characters before creating anything", async () => {
+    const mocks = createMocks();
+    await withWorkspaceFiles(async () => {
+      const creating = runNew({ branch: "feat-123", repos: [], installMissingDeps: "never", nickname: "a".repeat(41) }, createSilentContext(), mocks);
+
+      await expect(creating).rejects.toMatchObject({ category: "pre-condicao" });
+    });
+    expect(mocks.worktree).not.toHaveBeenCalled();
+    expect(mocks.copyTpl).not.toHaveBeenCalled();
+    expect(mocks.setNickname).not.toHaveBeenCalled();
   });
 
   test("reports a failing tool in an optional repo as ferramenta-externa", async () => {

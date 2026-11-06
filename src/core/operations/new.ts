@@ -35,6 +35,7 @@ import { runHooks } from "../../lib/hooks";
 import type { NsContext } from "../context";
 import { NsError, type NsErrorCategory, asNsError, conflito, naoEncontrado, preCondicao } from "../errors";
 import { type OptionalRepo, runAddRepo } from "./add-repo";
+import { parseNickname, runSetNickname } from "./nickname";
 import { type PrepareInput, type PrepareResult, runPrepare } from "./prepare";
 
 export interface NewInput {
@@ -42,6 +43,7 @@ export interface NewInput {
   baseBranch?: string;                                  // default: master; não vale para report-server e parents
   repos: OptionalRepo[];                                // Repos opcionais pedidos
   installMissingDeps: PrepareInput["installMissingDeps"];
+  nickname?: string;                                    // Apelido; vazio ou ausente = sem Apelido
 }
 
 /** Repo opcional que não entrou: a branch foi mantida e dá para incluí-lo de novo com `add`. */
@@ -78,6 +80,7 @@ export interface NewDeps {
   hooks: typeof runHooks;
   addRepo: typeof runAddRepo;
   prepare: typeof runPrepare;
+  setNickname: typeof runSetNickname;
 }
 
 const defaultDeps: NewDeps = {
@@ -96,12 +99,15 @@ const defaultDeps: NewDeps = {
   hooks: runHooks,
   addRepo: runAddRepo,
   prepare: runPrepare,
+  setNickname: runSetNickname,
 };
 
 /**
  * Nova Branch de workspace: cria a branch com backend, frontend, docs e o manager (se pedido),
  * inclui os outros Repos opcionais e prepara a branch, sem iniciar Serviços.
  * Repo opcional que falha depois de a branch existir não desfaz nada: vai para `missingRepos`.
+ * O Apelido é conferido antes de tudo e gravado assim que a branch existe, para ela já surgir apelidada;
+ * se não der para gravá-lo, a branch segue sem Apelido, que é só para ver e pode ser dado depois.
  */
 export async function runNew(
   input: NewInput,
@@ -112,8 +118,9 @@ export async function runNew(
   const { branch } = input;
   const requested = [...new Set(input.repos)];
   const withManager = requested.includes("manager");
+  const nickname = parseNickname(input.nickname ?? "");
 
-  const created = await createBranch(branch, input.baseBranch ?? "master", withManager, ctx, deps);
+  const created = await createBranch({ branch, baseBranch: input.baseBranch ?? "master", withManager, nickname }, ctx, deps);
   await deps.markTouched(branch, "new");
 
   const repos: OptionalRepo[] = withManager ? ["manager"] : [];
@@ -144,10 +151,15 @@ export async function runNew(
 
 type CreatedBranch = Pick<NewResult, "branch" | "slug" | "paths" | "ports" | "urls">;
 
+interface BranchToCreate {
+  branch: string;
+  baseBranch: string;
+  withManager: boolean;
+  nickname: string | null;
+}
+
 async function createBranch(
-  branch: string,
-  baseBranch: string,
-  withManager: boolean,
+  { branch, baseBranch, withManager, nickname }: BranchToCreate,
   ctx: NsContext,
   deps: NewDeps,
 ): Promise<CreatedBranch> {
@@ -240,6 +252,7 @@ async function createBranch(
       CREATED_AT: new Date().toISOString(),
       SEEDED_FROM: baseOriginBranch,
     });
+    if (nickname) await deps.setNickname({ branch, nickname }, ctx).catch(() => undefined);
 
     const backendProps = join(root, `backend/${BACKEND_CORE_MODULE}/src/main/resources/application-dev.properties`);
     await shell(["mkdir", "-p", join(backendProps, "..")], { silent: true });

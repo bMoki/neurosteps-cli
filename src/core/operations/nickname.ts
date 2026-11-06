@@ -49,6 +49,15 @@ export function normalizeNickname(text: string): string | null {
   return line.length > 0 ? line : null;
 }
 
+/** Apelido normalizado, ou null quando vazio; recusa o que passa de NICKNAME_MAX_LENGTH. */
+export function parseNickname(text: string): string | null {
+  const nickname = normalizeNickname(text);
+  if (nickname && nicknameLength(nickname) > NICKNAME_MAX_LENGTH) {
+    throw preCondicao(`O Apelido tem mais de ${NICKNAME_MAX_LENGTH} caracteres`, "Use um Apelido mais curto.");
+  }
+  return nickname;
+}
+
 /** Lê o Apelido da branch; sem arquivo, ou com arquivo vazio, a branch não tem Apelido. */
 export async function readNickname(branch: string): Promise<string | null> {
   try {
@@ -72,10 +81,7 @@ export async function runSetNickname(
   if (!d.branchExists(branch)) {
     throw naoEncontrado(`Branch '${branch}' não encontrada`, "Rode 'ns status' para ver as branches disponíveis.");
   }
-  const nickname = normalizeNickname(input.nickname);
-  if (nickname && nicknameLength(nickname) > NICKNAME_MAX_LENGTH) {
-    throw preCondicao(`O Apelido tem mais de ${NICKNAME_MAX_LENGTH} caracteres`, "Use um Apelido mais curto.");
-  }
+  const nickname = parseNickname(input.nickname);
   const file = nicknameFile(branch);
   await (nickname ? d.write(file, `${nickname}\n`) : d.remove(file)).catch((error) => { throw asNsError(error); });
   return { branch, nickname };
