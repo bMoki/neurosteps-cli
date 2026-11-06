@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { isBranchStale } from "../../lib/branch-flags";
+import {
+  getBranchFlags,
+  getBranchFlagsMany,
+  isBranchStale,
+  listFlaggedBranches,
+} from "../../lib/branch-flags";
+
+// Nomes que não existem no workspace: nenhum git é disparado, o resultado é determinístico.
+const MISSING = (n: number) => Array.from({ length: n }, (_, i) => `__sem-worktree-${i}__`);
 
 describe("branch flags", () => {
   const now = new Date("2026-06-30T12:00:00.000Z");
@@ -30,5 +38,43 @@ describe("branch flags", () => {
       lastCommitAt: null,
       lastCliUsedAt: new Date("2026-06-01T12:00:00.000Z"),
     }, now)).toBe(false);
+  });
+});
+
+describe("leitura em lote", () => {
+  test("devolve uma entrada por branch pedida", async () => {
+    const branches = MISSING(3);
+    const infos = await getBranchFlagsMany(branches);
+
+    expect([...infos.keys()]).toEqual(branches);
+    expect(infos.get(branches[0]!)).toEqual({
+      flags: [],
+      stale: false,
+      lastCommitAt: null,
+      lastCliUsedAt: null,
+    });
+  });
+
+  test("lista vazia não quebra o pool de workers", async () => {
+    expect(await getBranchFlagsMany([])).toEqual(new Map());
+  });
+
+  test("mantém a correspondência branch→resultado acima do limite de concorrência", async () => {
+    const branches = MISSING(20);
+    const infos = await getBranchFlagsMany(branches);
+
+    expect(infos.size).toBe(20);
+    expect(branches.every((branch) => infos.has(branch))).toBe(true);
+  });
+
+  test("getBranchFlags devolve a mesma forma da leitura em lote", async () => {
+    const [branch] = MISSING(1);
+    const single = await getBranchFlags(branch!);
+
+    expect(single).toEqual((await getBranchFlagsMany([branch!])).get(branch!)!);
+  });
+
+  test("listFlaggedBranches ignora branches sem a flag", async () => {
+    expect(await listFlaggedBranches(MISSING(3))).toEqual([]);
   });
 });

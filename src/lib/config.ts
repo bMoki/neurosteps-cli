@@ -1,6 +1,7 @@
 import { join } from "path";
 import {
   WORKTREES_DIR,
+  STATE_DIR,
   BACKEND_REPO,
   FRONTEND_REPO,
   MANAGER_REPO,
@@ -19,6 +20,7 @@ export {
   TEMPLATES_DIR,
   WORKTREES_DIR,
   SNAPSHOTS_DIR,
+  STATE_DIR,
   MASTER_DB_PORT,
   MASTER_BACKEND_PORT,
   MASTER_FRONTEND_PORT,
@@ -161,6 +163,22 @@ export function hasParents(branch: string): boolean {
 
 export function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+export const SERVICE_IDS = ["backend", "frontend", "manager", "report-server"] as const;
+
+/** Pasta dos logs dos Serviços da branch. Sai junto com a branch no `ns rm`. */
+export function resolveBranchStateDir(branch: string): string {
+  return join(STATE_DIR, branch);
+}
+
+export function resolveServiceLogFile(branch: string, id: string): string {
+  return join(resolveBranchStateDir(branch), `${id}.log`);
+}
+
+/** Nome da sessão tmux do Serviço. tmux não aceita `.` nem `:` no nome, e o slug de branch antiga pode ter `/`. */
+export function resolveServiceSession(slug: string, id: string): string {
+  return `ns-${slug.replace(/[^A-Za-z0-9_-]/g, "-")}-${id}`;
 }
 
 export function listBranches(): string[] {

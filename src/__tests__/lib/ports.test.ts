@@ -1,5 +1,6 @@
 import { describe, test, expect, mock, spyOn } from "bun:test";
-import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts, ensureManagementPort } from "../../lib/ports";
+import { isPortAvailable, getNextPort, getAssignedPorts, allocatePorts, ensureManagementPort, listListeningPorts } from "../../lib/ports";
+import { createShellResult } from "../setup";
 import * as config from "../../lib/config";
 import * as fs from "fs";
 
@@ -90,7 +91,7 @@ describe("ports", () => {
       return { exitCode: 1 };
     }) as any;
 
-    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation((path: any) => {
+    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation(((path: any) => {
       if (String(path).includes("branch-a")) {
         return `DB_PORT="5437"\nBACKEND_PORT="8082"\nFRONTEND_PORT="3013"\n`;
       }
@@ -98,7 +99,7 @@ describe("ports", () => {
         return `DB_PORT="5438"\nBACKEND_PORT="8083"\nFRONTEND_PORT="3014"\nMANAGER_PORT="3020"\n`;
       }
       throw new Error("not found");
-    });
+    }) as any);
 
     const reserved = getAssignedPorts();
     expect(reserved.has(5437)).toBe(true);
@@ -123,10 +124,10 @@ describe("ports", () => {
       return { exitCode: 1 };
     }) as any;
 
-    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation(() => {
+    const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation((() => {
       // existing branch occupies the base ports
       return `DB_PORT="5434"\nBACKEND_PORT="8080"\nBACKEND_DEBUG_PORT="5005"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3011"\n`;
-    });
+    }) as any);
 
     const ports = allocatePorts();
     expect(ports.db).not.toBe(5434);
@@ -163,12 +164,32 @@ describe("ports", () => {
 
     expect(port).toBe(9001);
     expect(String(writeSpy.mock.calls[0]?.[0])).toEndWith("feat-123/.workspace.env");
-    expect(writeSpy.mock.calls[0]?.[1]).toBe(
+    expect(String(writeSpy.mock.calls[0]?.[1])).toBe(
       `BACKEND_PORT="8083"\nBACKEND_DEBUG_PORT="5018"\nMANAGEMENT_PORT="9001"\nFRONTEND_PORT="3014"\n`,
     );
 
     fileSpy.mockRestore();
     writeSpy.mockRestore();
     Bun.spawnSync = originalSpawnSync;
+  });
+});
+
+describe("listListeningPorts", () => {
+  test("junta as portas de todos os processos numa chamada só ao lsof", async () => {
+    const run = mock((command: string[]) => Promise.resolve(createShellResult(command, {
+      stdout: "p949\nf12\nn*:8084\nf14\nn127.0.0.1:5438\np1307\nf9\nn[::1]:3015\n",
+    })));
+
+    expect(await listListeningPorts(run)).toEqual(new Set([8084, 5438, 3015]));
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  test("lsof sem resultado é a lista vazia; com erro no stderr, falha", async () => {
+    const empty = mock((command: string[]) => Promise.resolve(createShellResult(command, { exitCode: 1 })));
+    expect((await listListeningPorts(empty)).size).toBe(0);
+
+    const broken = mock((command: string[]) =>
+      Promise.resolve(createShellResult(command, { exitCode: 1, stderr: "lsof: permissão negada" })));
+    await expect(listListeningPorts(broken)).rejects.toThrow("listar portas em uso");
   });
 });

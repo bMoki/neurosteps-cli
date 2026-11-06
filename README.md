@@ -88,13 +88,7 @@ Isso cria uma workspace em:
 ~/Developer/worktrees/minha-branch/
 ```
 
-Ela terá `backend`, `frontend`, `manager`, `.workspace.env`, `docker-compose.yml` e arquivos de IDE.
-
-Prepare DB e aliases Portless:
-
-```bash
-ns prepare minha-branch
-```
+Ela terá `backend`, `frontend`, `manager`, `.workspace.env`, `docker-compose.yml` e arquivos de IDE. O `ns new` já deixa a branch preparada (banco no ar, aliases Portless e dependências), sem subir os serviços. Para preparar de novo depois, use `ns prepare minha-branch`.
 
 Abra no IDE configurado:
 
@@ -109,6 +103,8 @@ Inicie os serviços em terminais:
 ```bash
 ns start minha-branch
 ```
+
+Cada serviço roda numa sessão tmux própria, e a janela do Terminal é só uma vista dela: fechar a janela **não** para o serviço. Ctrl-C continua parando o processo. A saída de cada serviço fica em `~/.local/state/ns/<branch>/<serviço>.log`, zerada a cada início. Sem tmux, o `ns start` avisa e roda os serviços dentro das janelas, como antes.
 
 Pare serviços e aliases:
 
@@ -129,6 +125,14 @@ ns close minha-branch
 ```bash
 ns new minha-branch --no-manager
 ```
+
+### Criar uma branch com report-server e parents
+
+```bash
+ns new minha-branch --with report-server,parents
+```
+
+Cada Repo opcional usa a sua base padrão (`master` no report-server, `main` no parents), não a base passada ao `ns new`. Se um deles falhar depois de a workspace existir, ela é mantida e preparada, e o `ns` mostra o `ns add` que repete só aquele Repo.
 
 ### Adicionar manager depois
 
@@ -165,6 +169,8 @@ ns status minha-branch
 ns status --all
 ```
 
+Cada serviço aparece num de quatro estados: **Rodando** (`●`, atende na porta), **Iniciando** (`◐`, a sessão tmux está viva mas a porta ainda não responde), **Falhou** (`✕`, o processo terminou sem `ns stop`; o detalhe da branch aponta o log) e **Parado** (`○`). O banco só fica Rodando ou Parado. No `--plain` os estados saem como `on`, `starting`, `failed` e `off`; no `--json` as chaves booleanas continuam dizendo só se está Rodando, e `states` traz os quatro estados.
+
 ### Diagnosticar e corrigir
 
 ```bash
@@ -187,6 +193,8 @@ ns db open minha-branch
 ns db snapshot minha-branch antes-migracao
 ns db restore minha-branch antes-migracao
 ```
+
+Um nome que a branch já usa pede confirmação antes de substituir (`-f` substitui sem perguntar). Snapshots de branches removidas sem `--purge` aparecem em `ns db snapshots` como órfãos e continuam restauráveis por `origem:nome`.
 
 ### Remover uma workspace
 
@@ -217,6 +225,7 @@ ns rm minha-branch --force
 | Git | Branches e worktrees. |
 | Docker | PostgreSQL por branch, volumes, seed e snapshots. |
 | Portless CLI | Proxy local e aliases por branch. |
+| tmux | Mantém os serviços do `ns start` vivos quando a janela fecha (`brew install tmux`). Opcional: sem ele, os serviços rodam dentro das janelas. |
 | Repos locais | Backend, frontend e manager são origem das worktrees. |
 
 ### Opções globais
@@ -247,9 +256,10 @@ ns rm minha-branch --force
 
 | Comando | O que faz | Observação |
 | --- | --- | --- |
-| `ns new <branch>` | Cria worktrees configuradas para backend, frontend e manager. | Usa `master` como base. |
+| `ns new <branch>` | Cria e prepara worktrees configuradas para backend, frontend, docs e manager. | Usa `master` como base. Não sobe os serviços. |
 | `ns new <branch> <base>` | Cria worktrees a partir de `origin/<base>`. | A base precisa existir no origin dos repositórios usados. |
 | `ns new <branch> --no-manager` | Cria workspace sem manager. | Manager pode ser adicionado depois. |
+| `ns new <branch> --with report-server,parents` | Cria workspace com os Repos opcionais pedidos. | Cada um na sua base padrão. Falha num deles mantém a workspace. |
 | `ns add manager <branch>` | Adiciona manager a uma workspace existente. | Usa `master` como base por padrão. |
 | `ns add manager <branch> --base <base>` | Adiciona manager a partir de `origin/<base>`. | A base precisa existir no origin do repositório manager. |
 | `ns add manager <branch> --port <port>` | Adiciona manager com porta específica. | Atualiza `.workspace.env`. |
@@ -270,8 +280,8 @@ ns rm minha-branch --force
 | `ns open <branch>` | Prepara e abre a workspace no IDE configurado. | Não sobrescreve configs IntelliJ existentes. |
 | `ns open <branch> --no-prepare` | Abre a workspace sem subir DB/aliases. | Útil quando já está tudo rodando. |
 | `ns open <branch> --app <name>` | Abre em um app específico. | Exemplo: `intellij`, `vscode`, `webstorm`. |
-| `ns start <branch>` | Sobe DB, aliases e terminais dos serviços. | Backend, frontend e manager quando existir. |
-| `ns stop <branch>` | Para DB, remove aliases e mata processos das portas. | Compartilha rotina de shutdown com `close`. |
+| `ns start <branch> [serviço]` | Sobe DB, aliases e uma sessão tmux por serviço, com uma janela do Terminal em cada. | Backend, frontend e manager quando existir. Com `serviço` (`backend`, `frontend`, `manager`, `report-server`), sobe só aquele. |
+| `ns stop <branch> [serviço]` | Para DB, remove aliases, derruba as sessões tmux e mata processos das portas. | Compartilha rotina de shutdown com `close`. Com `serviço`, para só aquele e deixa o DB e os outros rodando. |
 | `ns close <branch>` | Faz `stop` e fecha janelas do IDE. | Fecha janelas cujo nome contém a branch. |
 | `ns portless <branch>` | Registra aliases Portless da branch. | Não sobe todos os serviços. |
 | `ns pull [remote] [branch]` | Roda `git pull` em paralelo em todos os repos da branch (padrão: `origin @default`). | `@default` resolve a branch principal de cada repo (`main`/`master`). Branch é inferida do diretório atual ou via `-b`. Repos sem a branch no remoto são ignorados; falhas não interrompem os demais e resultam em exit 1. |
@@ -283,6 +293,7 @@ ns rm minha-branch --force
 | `ns status` | Mostra status compacto de todas as branches. | Lê `~/Developer/worktrees` ou `NS_BASE_DIR/worktrees`. |
 | `ns status <branch>` | Mostra detalhes de uma branch. | Inclui portas, DB e aliases. |
 | `ns status --all` | Mostra detalhes de todas as branches. | Mais verboso. |
+| `ns rpc` | Serve as operações do núcleo em NDJSON pelo stdin/stdout: `status`, `prepare`, `start` e `stop`. | Usado pelo Thalamus e outros adapters. O `start` exige tmux. Protocolo na [ADR 0003](docs/adr/0003-ns-rpc-adapter-stdio.md). |
 | `ns doctor <branch>` | Diagnostica configuração da branch. | Verifica worktree, env, Docker, Portless e portas. |
 | `ns doctor <branch> --fix` | Tenta corrigir problemas conhecidos. | Pode recriar templates, volume e aliases. |
 
@@ -398,6 +409,8 @@ O `ns init` ajuda a montar esse arquivo. Ele pergunta o diretório base, detecta
 `ns new <branch>` valida que os repositórios base existem, valida que `origin/<base>` existe, busca origin, cria ou reaproveita branches locais e cria worktrees em `NS_BASE_DIR/worktrees/<branch>`.
 
 Depois disso, ele aloca portas, gera `.workspace.env`, cria `docker-compose.yml`, aplica templates de backend/frontend/manager, cria arquivos de VS Code e IntelliJ e tenta copiar o volume `NS_SEED_VOLUME` para o volume da branch.
+
+Em seguida inclui os Repos pedidos com `--with` (como o `ns add` faria) e prepara a branch como o `ns prepare`. Nenhum serviço é iniciado.
 
 ### Onde cada coisa fica
 

@@ -1,4 +1,4 @@
-import { execSync } from "./shell";
+import { execSync, openApp, spawnTerminal } from "./shell";
 import { getSetting, readSettings, writeSettings } from "./settings";
 import { select, input } from "@inquirer/prompts";
 import { assertInteractiveInput } from "./prompt";
@@ -104,20 +104,6 @@ export async function resolveDefaultIde(): Promise<string> {
   return "vscode";
 }
 
-export async function resolveDatabaseApp(): Promise<string> {
-  const configured = await getSetting("databaseApp");
-  if (configured && typeof configured === "string") {
-    const path = await resolveAppPath(configured);
-    if (path) return configured;
-  }
-  const detected = detectInstalledApps();
-  const dg = detected.find((a) => a.key === "datagrip");
-  if (dg) return "datagrip";
-  const firstDetected = detected[0];
-  if (firstDetected) return firstDetected.key;
-  return "datagrip";
-}
-
 export async function promptForApp(apps: DetectedApp[]): Promise<string> {
   assertInteractiveInput("escolher um app");
 
@@ -190,8 +176,6 @@ export async function ensureDatabaseAppConfigured(): Promise<string> {
 }
 
 // ─── AI Assistants ───
-
-import { openApp, spawnTerminal, execSync } from "./shell";
 
 export function isAiAppKey(key: string): boolean {
   return true; // any key is potentially a CLI command

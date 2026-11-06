@@ -23,6 +23,8 @@ src/
 │   ├── portless.ts       # Portless alias management
 │   ├── templates.ts      # Template rendering/copying
 │   └── logger.ts         # chalk + ora
+├── core/                 # Núcleo: operações run(input, ctx) sem I/O de terminal
+├── rpc/                  # Adapter `ns rpc` (NDJSON no stdio)
 ├── commands/             # Commander command definitions
 ├── actions/              # Command business logic
 └── __tests__/            # Test suites
@@ -41,6 +43,8 @@ All configuration is via env vars validated by Zod in `src/lib/env.ts`:
 | `NS_PARENTS_REPO_NAME` | No | Parents app repo folder name (default: `scalemed-parents`) |
 | `NS_SEED_VOLUME` | Yes | Full Docker volume name for DB seeding |
 | `NS_BASE_DIR` | No | Base directory (default: `~/Developer`) |
+| `NS_CONFIG_DIR` | No | Folder of `env.json` and `settings.json` (default: `~/.config/ns`). Read in `settings.ts`, not in the Zod schema, because the schema is loaded from that folder. The test suite points it at a temp folder |
+| `NS_STATE_DIR` | No | Folder of the service logs, one subfolder per branch (default: `~/.local/state/ns`) |
 | `NS_BACKEND_REPO` | No | Override backend repo path |
 | `NS_FRONTEND_REPO` | No | Override frontend repo path |
 | `NS_MANAGER_REPO` | No | Override manager repo path |
@@ -79,6 +83,8 @@ bun test
 4. Register in `src/index.ts`
 5. Add tests in `src/__tests__/actions/<name>.test.ts`
 6. Update completion in `src/commands/completion.ts`
+
+Operações migradas para o núcleo (ADR 0002) não têm action: a lógica fica em `src/core/operations/<nome>.ts`, com testes em `src/__tests__/core/`, e o comando só a apresenta. Para servi-la no `ns rpc`, registre-a em `src/rpc/operations.ts`.
 
 ## graphify
 

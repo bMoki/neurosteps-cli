@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "fs";
+import { readFileSync, readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 import { input, confirm } from "@inquirer/prompts";
@@ -45,7 +45,7 @@ function classifyRepo(name: string): "backend" | "frontend" | "manager" | "docs"
 function detectBackendModule(repoPath: string): string | undefined {
   try {
     const pomPath = join(repoPath, "pom.xml");
-    const content = Bun.file(pomPath).textSync();
+    const content = readFileSync(pomPath, "utf8");
     const match = content.match(/<artifactId>([^<]+)<\/artifactId>/);
     return match?.[1];
   } catch {
@@ -56,10 +56,10 @@ function detectBackendModule(repoPath: string): string | undefined {
 function detectBackendCoreModule(repoPath: string): string | undefined {
   try {
     const pomPath = join(repoPath, "pom.xml");
-    const content = Bun.file(pomPath).textSync();
+    const content = readFileSync(pomPath, "utf8");
     const modulesMatch = content.match(/<modules>([\s\S]*?)<\/modules>/);
-    if (modulesMatch) {
-      const modulesContent = modulesMatch[1];
+    const modulesContent = modulesMatch?.[1];
+    if (modulesContent) {
       const moduleMatches = modulesContent.match(/<module>([^<]+)<\/module>/g);
       if (moduleMatches) {
         // Prefer module with "-core" suffix, fallback to first module
@@ -79,7 +79,7 @@ function detectBackendCoreModule(repoPath: string): string | undefined {
 function detectProductNameFromFrontend(repoPath: string): string | undefined {
   try {
     const packageJsonPath = join(repoPath, "package.json");
-    const content = Bun.file(packageJsonPath).textSync();
+    const content = readFileSync(packageJsonPath, "utf8");
     const parsed = JSON.parse(content);
     return parsed.name;
   } catch {

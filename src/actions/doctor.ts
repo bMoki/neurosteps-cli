@@ -18,6 +18,7 @@ import { registerAlias, listAliases } from "../lib/portless";
 import { colors, heading, spinner } from "../lib/logger";
 import { assertSuccess, commandErrorMessage, exec, execSync } from "../lib/shell";
 import { ensureWorkspaceBootstrap } from "../lib/bootstrap";
+import { hasTmux } from "../lib/services";
 import { dirExists, pathExists } from "../lib/filesystem";
 import { join } from "path";
 
@@ -176,6 +177,12 @@ export async function doctorAction(
         }
       }
     }
+  }
+  if (await hasTmux(shell)) {
+    checkPass("tmux instalado");
+  } else {
+    checkWarn("tmux NÃO encontrado: o ns start roda os serviços dentro das janelas, e eles param quando a janela fecha");
+    console.log(colors.info("    → Instale com: brew install tmux"));
   }
 
   // 3. .workspace.env

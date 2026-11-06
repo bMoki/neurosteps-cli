@@ -2,10 +2,12 @@ import { z } from "zod";
 import { homedir } from "os";
 import { join } from "path";
 import { existsSync, readFileSync } from "fs";
+import { NS_ENV_FILE } from "./settings";
 
 const envSchema = z.object({
   // ─── Paths do sistema (opcionais com defaults) ───
   NS_BASE_DIR: z.string().default(join(homedir(), "Developer")),
+  NS_STATE_DIR: z.string().default(join(homedir(), ".local", "state", "ns")),
   NS_BACKEND_REPO: z.string().optional(),
   NS_FRONTEND_REPO: z.string().optional(),
   NS_MANAGER_REPO: z.string().optional(),
@@ -59,9 +61,8 @@ export function isConfigured(): boolean {
 
 function readEnvFileSync(): Record<string, string> {
   try {
-    const filePath = join(homedir(), ".config", "ns", "env.json");
-    if (existsSync(filePath)) {
-      const content = readFileSync(filePath, "utf8");
+    if (existsSync(NS_ENV_FILE)) {
+      const content = readFileSync(NS_ENV_FILE, "utf8");
       if (content) {
         const parsed = JSON.parse(content);
         const result: Record<string, string> = {};
@@ -118,6 +119,7 @@ export let WORKSPACE_DIR: string;
 export let TEMPLATES_DIR: string;
 export let WORKTREES_DIR: string;
 export let SNAPSHOTS_DIR: string;
+export let STATE_DIR: string;
 
 export let BACKEND_REPO: string;
 export let FRONTEND_REPO: string;
@@ -152,6 +154,7 @@ function applyEnv(nextEnv: EnvVars): void {
   TEMPLATES_DIR = join(WORKSPACE_DIR, "templates");
   WORKTREES_DIR = join(BASE_DIR, "worktrees");
   SNAPSHOTS_DIR = join(WORKSPACE_DIR, "snapshots");
+  STATE_DIR = env.NS_STATE_DIR;
 
   BACKEND_REPO = env.NS_BACKEND_REPO || join(BASE_DIR, env.NS_BACKEND_REPO_NAME);
   FRONTEND_REPO = env.NS_FRONTEND_REPO || join(BASE_DIR, "frontend");

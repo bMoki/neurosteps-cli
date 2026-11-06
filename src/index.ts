@@ -17,10 +17,12 @@ import {
   completionCommand,
   addCommand,
   pullCommand,
+  rpcCommand,
 } from "./commands";
 import { isConfigured, getMissingVars } from "./lib/env";
 import { addGlobalCliOptions, configureCliProgram, isDebugEnabled, isGlobalBooleanFlag } from "./lib/cli";
 import { error, warn, hint } from "./lib/logger";
+import { isNsError } from "./core";
 
 process.on("SIGINT", () => {
   process.stderr.write("\nInterrompido.\n");
@@ -56,6 +58,7 @@ program
   .addCommand(workspaceCommand())
   .addCommand(configCommand())
   .addCommand(completionCommand())
+  .addCommand(rpcCommand())
   .addCommand(
     new Command("help")
       .description("Exibe ajuda para um comando")
@@ -90,7 +93,8 @@ async function main(argv = process.argv): Promise<void> {
     wantsVersion ||
     firstArg === "init" ||
     firstArg === "config" ||
-    firstArg === "completion";
+    firstArg === "completion" ||
+    firstArg === "rpc";
 
   if (!isBootstrapSafe && !isConfigured()) {
     warn("CLI não configurado.");
@@ -121,6 +125,18 @@ function isCommanderError(error: unknown): error is CommanderError {
 main().catch((err) => {
   if (isCommanderError(err)) {
     process.exitCode = err.exitCode;
+    return;
+  }
+
+  // Erro do núcleo: já vem com mensagem para humano. Exit code 1 em toda categoria.
+  if (isNsError(err)) {
+    error(err.message);
+    if (err.hint) hint(err.hint);
+    if (isDebugEnabled() && err.cause) {
+      console.error("");
+      console.error(err.cause instanceof Error && err.cause.stack ? err.cause.stack : err.cause);
+    }
+    process.exitCode = 1;
     return;
   }
 

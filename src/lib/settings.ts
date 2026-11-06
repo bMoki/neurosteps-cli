@@ -2,7 +2,7 @@ import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync } from "fs";
 
-export const NS_CONFIG_DIR = join(homedir(), ".config", "ns");
+export const NS_CONFIG_DIR = process.env.NS_CONFIG_DIR || join(homedir(), ".config", "ns");
 export const NS_SETTINGS_FILE = join(NS_CONFIG_DIR, "settings.json");
 export const NS_ENV_FILE = join(NS_CONFIG_DIR, "env.json");
 
@@ -31,7 +31,7 @@ export async function writeSettings(settings: NsSettings): Promise<void> {
   await Bun.write(NS_SETTINGS_FILE, JSON.stringify(settings, null, 2));
 }
 
-export async function getSetting(key: keyof NsSettings): Promise<string | Record<string, string> | undefined> {
+export async function getSetting<K extends keyof NsSettings>(key: K): Promise<NsSettings[K]> {
   const settings = await readSettings();
   return settings[key];
 }

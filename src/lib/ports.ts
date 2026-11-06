@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { MASTER_DB_PORT, MASTER_BACKEND_PORT, MASTER_FRONTEND_PORT, MASTER_MANAGER_PORT, WORKTREES_DIR, listBranches } from "./config";
-import { commandErrorMessage, execSync, type ShellResult } from "./shell";
+import { commandErrorMessage, exec, execSync, type ShellResult } from "./shell";
 
 const BACKEND_DEBUG_PORT_BASE = 5005;
 // 9000 é a porta de management do master (application.properties); worktrees começam em 9001.
@@ -19,6 +19,25 @@ export function isPortAvailable(port: number): boolean {
   if (result.exitCode === 0) return false;
   if (!result.stderr.trim()) return true;
   throw new Error(commandErrorMessage(`verificar porta ${port} com lsof`, result));
+}
+
+/**
+ * Portas TCP com algum processo escutando, numa chamada só ao lsof.
+ * O lsof sai com código 1 quando não acha nada: isso é a lista vazia, não erro.
+ * `-w` cala os avisos (ex.: `can't stat()`), que viriam no stderr e pareceriam falha.
+ */
+export async function listListeningPorts(run: typeof exec = exec): Promise<Set<number>> {
+  const command = ["lsof", "-w", "-nP", "-iTCP", "-sTCP:LISTEN", "-Fn"];
+  const result = await run(command, { silent: true });
+  if (result.exitCode !== 0 && result.stderr.trim()) {
+    throw new Error(commandErrorMessage("listar portas em uso com lsof", result));
+  }
+  const ports = new Set<number>();
+  for (const line of result.stdout.split("\n")) {
+    const match = line.match(/^n.*:(\d+)$/);
+    if (match) ports.add(Number(match[1]));
+  }
+  return ports;
 }
 
 export function getAssignedPorts(): Set<number> {

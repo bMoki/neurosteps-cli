@@ -5,7 +5,8 @@ import { initCommand } from "./init";
 import { portlessCommand } from "./portless";
 import { startCommand } from "./dev";
 import { openCommand, closeCommand } from "./open-close";
-import { newCommand, rmCommand } from "./branch";
+import { newCommand } from "./branch";
+import { rmCommand } from "./rm";
 import { dbCommand } from "./db";
 import { doctorCommand } from "./doctor";
 import { workspaceCommand } from "./workspace";
@@ -13,6 +14,7 @@ import { configCommand } from "./config";
 import { completionCommand } from "./completion";
 import { addCommand } from "./add";
 import { pullCommand } from "./pull";
+import { rpcCommand } from "./rpc";
 
 export {
   statusCommand,
@@ -32,4 +34,5 @@ export {
   completionCommand,
   addCommand,
   pullCommand,
+  rpcCommand,
 };

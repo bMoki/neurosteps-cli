@@ -23,6 +23,7 @@ const COMMANDS = [
   "workspace",
   "config",
   "completion",
+  "rpc",
   "help",
 ];
 
