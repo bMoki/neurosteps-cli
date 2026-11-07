@@ -43,6 +43,7 @@ function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
     stale: false,
     lastCommitAt: null,
     lastCliUsedAt: null,
+    createdAt: "2026-11-01T12:00:00.000Z",
     ...overrides,
   };
 }
@@ -232,6 +233,7 @@ describe("--json", () => {
       stale: false,
       lastCommitAt: null,
       lastCliUsedAt: null,
+      createdAt: "2026-11-01T12:00:00.000Z",
     });
   });
 

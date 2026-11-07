@@ -35,6 +35,7 @@ function createDeps(overrides: Partial<StatusDeps> = {}): Partial<StatusDeps> {
     listBaseRepos: mock(() => []),
     readRepoCheckouts: mock(() => Promise.resolve([])),
     readNickname: mock(() => Promise.resolve(null)),
+    readCreatedAt: mock(() => Promise.resolve(null)),
     ...overrides,
   };
 }
@@ -133,6 +134,28 @@ describe("runStatus", () => {
       ["NS-1433", "Agenda recorrente"],
       ["NS-1418", null],
     ]);
+  });
+
+  test("devolve quando cada branch foi criada, a partir da pasta da branch", async () => {
+    const branch = `feat-created-${Date.now()}`;
+    const folder = join(WORKTREES_DIR, branch);
+    mkdirSync(folder, { recursive: true });
+
+    try {
+      const before = Date.now() - 1000;
+      const result = await runStatus({ branch }, createSilentContext(), createDeps({ readCreatedAt: undefined }));
+      const createdAt = result.branches[0]!.createdAt;
+      expect(createdAt).not.toBeNull();
+      expect(new Date(createdAt!).getTime()).toBeGreaterThanOrEqual(before);
+    } finally {
+      rmSync(folder, { recursive: true, force: true });
+    }
+  });
+
+  test("pasta da branch que não existe não tem data de criação", async () => {
+    const result = await runStatus({ branch: "feat-sem-pasta" }, createSilentContext(), createDeps({ readCreatedAt: undefined }));
+
+    expect(result.branches[0]!.createdAt).toBeNull();
   });
 
   test("serviço ausente na branch vira null, não false", async () => {
