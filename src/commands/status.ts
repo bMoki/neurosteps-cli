@@ -161,6 +161,7 @@ export interface StatusJsonRow {
   stale: boolean;
   lastCommitAt: string | null;
   lastCliUsedAt: string | null;
+  createdAt: string | null;
 }
 
 export interface StatusJsonError {
@@ -187,6 +188,7 @@ export function toStatusJsonRow(status: BranchStatus): StatusJsonRow {
     stale: status.stale,
     lastCommitAt: status.lastCommitAt,
     lastCliUsedAt: status.lastCliUsedAt,
+    createdAt: status.createdAt,
   };
 }
 

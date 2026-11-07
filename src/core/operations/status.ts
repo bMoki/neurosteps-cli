@@ -1,3 +1,4 @@
+import { stat } from "fs/promises";
 import { join } from "path";
 import {
   BACKEND_REPO,
@@ -76,6 +77,7 @@ export interface BranchStatus {
   stale: boolean;
   lastCommitAt: string | null;
   lastCliUsedAt: string | null;
+  createdAt: string | null;           // quando a pasta da branch foi criada; null se o sistema não informa
 }
 
 /** Branch git checada num Repo da Branch de workspace; null quando o Repo não tem git ou está em HEAD destacado. */
@@ -107,6 +109,7 @@ export interface StatusDeps {
   readServiceError: (branch: string, id: ServiceId) => Promise<string | null>;
   readRepoCheckouts: (branchPath: string) => Promise<RepoCheckout[]>;
   readNickname: (branch: string) => Promise<string | null>;
+  readCreatedAt: (branchPath: string) => Promise<string | null>;
 }
 
 /**
@@ -132,6 +135,7 @@ export async function runStatus(
     ?? ((branch: string, id: ServiceId) => lastErrorLine(resolveServiceLogFile(branch, id)));
   const readRepoCheckouts = deps.readRepoCheckouts ?? defaultReadRepoCheckouts;
   const readNickname = deps.readNickname ?? defaultReadNickname;
+  const readCreatedAt = deps.readCreatedAt ?? defaultReadCreatedAt;
 
   const names = input.branch ? [input.branch] : listBranches();
   const [listening, panes, runningContainers] = await Promise.all([
@@ -222,6 +226,7 @@ export async function runStatus(
       stale: flags.stale,
       lastCommitAt: flags.lastCommitAt,
       lastCliUsedAt: flags.lastCliUsedAt,
+      createdAt: await readCreatedAt(path),
     };
   }));
 
@@ -259,6 +264,16 @@ function defaultListBaseRepos(): BaseRepo[] {
 async function defaultReadRepoCheckouts(branchPath: string): Promise<RepoCheckout[]> {
   const present = baseRepos().map(({ repo }) => repo).filter((repo) => pathExists(join(branchPath, repo)));
   return Promise.all(present.map(async (repo) => ({ repo, gitBranch: await readCheckedOutBranch(join(branchPath, repo)) })));
+}
+
+/** Criação da pasta da branch, que o `ns new` faz; sistemas sem data de criação devolvem época zero. */
+async function defaultReadCreatedAt(branchPath: string): Promise<string | null> {
+  try {
+    const { birthtime } = await stat(branchPath);
+    return birthtime.getTime() > 0 ? birthtime.toISOString() : null;
+  } catch {
+    return null;
+  }
 }
 
 const SERVICE_KEYS: Array<[ServiceKey, ServiceId]> = [
