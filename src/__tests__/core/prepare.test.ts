@@ -224,9 +224,11 @@ describe("runPrepare", () => {
       expect(commands(run)).toEqual([
         "rm -rf feat-123/frontend/node_modules.ns-reuse",
         "cp -cR master/frontend/node_modules feat-123/frontend/node_modules.ns-reuse",
+        "touch feat-123/frontend/node_modules.ns-reuse/.ns-from-master",
         "mv feat-123/frontend/node_modules.ns-reuse feat-123/frontend/node_modules",
         "rm -rf feat-123/manager/node_modules.ns-reuse",
         "cp -cR master/manager/node_modules feat-123/manager/node_modules.ns-reuse",
+        "touch feat-123/manager/node_modules.ns-reuse/.ns-from-master",
         "mv feat-123/manager/node_modules.ns-reuse feat-123/manager/node_modules",
       ]);
       expect(result.depsReused).toEqual(["frontend", "manager"]);

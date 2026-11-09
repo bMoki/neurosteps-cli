@@ -39,6 +39,17 @@ export type {
 } from "./operations/prepare";
 export { runPrepare, servicesToStart } from "./operations/prepare";
 
+export type {
+  DepsOperationDeps,
+  DepsRepo,
+  DepsState,
+  DepsStatusInput,
+  DepsStatusResult,
+  InstallDepsInput,
+  RepoDeps,
+} from "./operations/deps";
+export { DEPS_REPOS, needsInstall, runDepsStatus, runInstallDeps } from "./operations/deps";
+
 export type { StopInput, StopResult } from "./operations/stop";
 export { runStop } from "./operations/stop";
 

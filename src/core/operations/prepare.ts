@@ -17,7 +17,7 @@ import {
 import { type PackageManager, installedMatchesLockfile as defaultInstalledMatchesLockfile } from "../../lib/deps";
 import { pathExists } from "../../lib/filesystem";
 import { ensureManagementPort as defaultEnsureManagementPort } from "../../lib/ports";
-import { exec } from "../../lib/shell";
+import { type ShellResult, exec } from "../../lib/shell";
 import {
   type BranchRuntime,
   type BranchSetupDeps,
@@ -82,7 +82,7 @@ const SETUP_LABELS: Record<BranchSetupStep, string> = {
   "portless:aliases": "Registrando aliases Portless...",
 };
 
-interface DepsSpec {
+export interface DepsSpec {
   id: ServiceId;
   cwd: string;
   marker: string;               // caminho que só existe com as dependências instaladas
@@ -96,6 +96,19 @@ interface DepsSpec {
  * worktree `master`, não a Branch principal (`@default`) de cada Repo.
  */
 const DEPS_SOURCE_BRANCH = "master";
+
+/** Arquivo que o reaproveitamento deixa no `node_modules`, para dizer depois que ele veio da master. */
+const REUSED_MARKER = ".ns-from-master";
+
+/** Onde o reaproveitamento deixa a marca de `REUSED_MARKER` no Repo da branch. */
+export function reusedMarker(cwd: string): string {
+  return join(cwd, "node_modules", REUSED_MARKER);
+}
+
+/** O `install` do gerenciador: sobre um `node_modules` existente, instala só as diferenças. */
+export function updateCommand(spec: DepsSpec): string[] {
+  return [spec.packageManager, "install"];
+}
 
 /**
  * Preparar e Iniciar são a mesma operação: deixa a branch pronta (banco, aliases,
@@ -201,7 +214,7 @@ export function servicesToStart(result: PrepareResult, service?: ServiceId): Ser
   return planned;
 }
 
-function depsSpecs(branch: string, includeManager: boolean, includeReportServer: boolean): DepsSpec[] {
+export function depsSpecs(branch: string, includeManager: boolean, includeReportServer: boolean): DepsSpec[] {
   const npm = { install: ["npm", "ci"], fallback: ["npm", "install"], packageManager: "npm" as const };
   const frontendDir = resolveFrontendDir(branch);
   const specs: DepsSpec[] = [
@@ -240,7 +253,8 @@ async function shouldInstall(
  * pelo mesmo motivo, o destino tem de ser a worktree da própria branch. O clone do
  * APFS só ocupa espaço quando um arquivo muda. Reaproveita só se a branch não tem
  * `node_modules` nenhum, para nunca mexer numa instalação existente. Copia para uma
- * pasta temporária e renomeia, para uma falha não deixar meio `node_modules` para trás.
+ * pasta temporária, marca com `REUSED_MARKER` e renomeia, para uma falha não deixar
+ * meio `node_modules` para trás.
  */
 async function reuseDeps(
   branch: string,
@@ -257,7 +271,12 @@ async function reuseDeps(
 
   ctx.emit({ step: `prepare:deps:${target.id}:reuse`, label: `Reaproveitando as dependências do ${target.id} da master...` });
   const staging = `${to}.ns-reuse`;
-  const steps = [["rm", "-rf", staging], ["cp", "-cR", from, staging], ["mv", staging, to]];
+  const steps = [
+    ["rm", "-rf", staging],
+    ["cp", "-cR", from, staging],
+    ["touch", join(staging, REUSED_MARKER)],
+    ["mv", staging, to],
+  ];
   for (const command of steps) {
     if (!await succeeds(run, command)) {
       await succeeds(run, ["rm", "-rf", staging]);
@@ -277,7 +296,7 @@ async function installDifferences(
   run: typeof exec,
   ctx: NsContext,
 ): Promise<"instaladas" | MissingDep> {
-  const update = [spec.packageManager, "install"];
+  const update = updateCommand(spec);
   const missing = (reason: MissingDep["reason"]): MissingDep =>
     ({ id: spec.id, cwd: spec.cwd, command: update.join(" "), reason });
 
@@ -299,13 +318,23 @@ async function succeeds(run: typeof exec, command: string[], cwd?: string): Prom
 }
 
 async function installDeps(spec: DepsSpec, run: typeof exec): Promise<boolean> {
-  const attempt = async (command: string[]) =>
-    (await run(command, { cwd: spec.cwd, silent: true })).exitCode === 0;
+  return installFresh(spec, run).then((failed) => !failed, () => false);
+}
+
+/**
+ * Instala do zero: `install` e, se ele nem rodar, `fallback`. Devolve o resultado do
+ * comando que saiu com erro, ou nada se instalou; um comando que nem roda lança.
+ */
+export async function installFresh(spec: DepsSpec, run: typeof exec): Promise<ShellResult | undefined> {
+  const attempt = async (command: string[]) => {
+    const result = await run(command, { cwd: spec.cwd, silent: true });
+    return result.exitCode === 0 ? undefined : result;
+  };
   try {
     return await attempt(spec.install);
-  } catch {
-    if (!spec.fallback) return false;
-    return attempt(spec.fallback).catch(() => false);
+  } catch (error) {
+    if (!spec.fallback) throw error;
+    return attempt(spec.fallback);
   }
 }
 

@@ -17,6 +17,7 @@ import {
   completionCommand,
   addCommand,
   pullCommand,
+  depsCommand,
   rpcCommand,
 } from "./commands";
 import { isConfigured, getMissingVars } from "./lib/env";
@@ -51,6 +52,7 @@ program
   .addCommand(newCommand())
   .addCommand(rmCommand())
   .addCommand(pullCommand())
+  .addCommand(depsCommand())
   .addCommand(openCommand())
   .addCommand(closeCommand())
   .addCommand(doctorCommand())

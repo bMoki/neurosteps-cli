@@ -14,6 +14,7 @@ import { configCommand } from "./config";
 import { completionCommand } from "./completion";
 import { addCommand } from "./add";
 import { pullCommand } from "./pull";
+import { depsCommand } from "./deps";
 import { rpcCommand } from "./rpc";
 
 export {
@@ -34,5 +35,6 @@ export {
   completionCommand,
   addCommand,
   pullCommand,
+  depsCommand,
   rpcCommand,
 };
