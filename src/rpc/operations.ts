@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  DEPS_REPOS,
   OPTIONAL_REPOS,
   type NsContext,
   type PrepareInput,
@@ -13,6 +14,8 @@ import {
   runDbRmSnapshot as defaultRunDbRmSnapshot,
   runDbSnapshot as defaultRunDbSnapshot,
   runDbSnapshots as defaultRunDbSnapshots,
+  runDepsStatus as defaultRunDepsStatus,
+  runInstallDeps as defaultRunInstallDeps,
   runNew as defaultRunNew,
   runPrepare as defaultRunPrepare,
   runPull as defaultRunPull,
@@ -61,6 +64,8 @@ export interface RpcOperationDeps {
   runRmPreview: typeof defaultRunRmPreview;
   runRm: typeof defaultRunRm;
   runDbOpen: typeof defaultRunDbOpen;
+  runDepsStatus: typeof defaultRunDepsStatus;
+  runInstallDeps: typeof defaultRunInstallDeps;
   runDbSnapshots: typeof defaultRunDbSnapshots;
   runDbSnapshot: typeof defaultRunDbSnapshot;
   runDbRestore: typeof defaultRunDbRestore;
@@ -81,6 +86,8 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
   const runRmPreview = deps.runRmPreview ?? defaultRunRmPreview;
   const runRm = deps.runRm ?? defaultRunRm;
   const runDbOpen = deps.runDbOpen ?? defaultRunDbOpen;
+  const runDepsStatus = deps.runDepsStatus ?? defaultRunDepsStatus;
+  const runInstallDeps = deps.runInstallDeps ?? defaultRunInstallDeps;
   const runDbSnapshots = deps.runDbSnapshots ?? defaultRunDbSnapshots;
   const runDbSnapshot = deps.runDbSnapshot ?? defaultRunDbSnapshot;
   const runDbRestore = deps.runDbRestore ?? defaultRunDbRestore;
@@ -124,6 +131,14 @@ export function createRpcOperations(deps: Partial<RpcOperationDeps> = {}): RpcOp
     addRepo: withInput(
       z.strictObject({ branch: z.string().min(1), repo: z.enum(OPTIONAL_REPOS), base: z.string().min(1).optional() }),
       (input, ctx) => runAddRepo(input, ctx),
+    ),
+    deps: withInput(
+      z.strictObject({ branch: z.string().min(1) }),
+      (input, ctx) => runDepsStatus(input, ctx),
+    ),
+    installDeps: withInput(
+      z.strictObject({ branch: z.string().min(1), repo: z.enum(DEPS_REPOS) }),
+      (input, ctx) => runInstallDeps(input, ctx),
     ),
     pull: withInput(
       z.strictObject({ branch: z.string().min(1) }),

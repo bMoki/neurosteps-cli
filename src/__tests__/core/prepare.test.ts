@@ -1,9 +1,10 @@
-import { describe, expect, mock, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, mock, test } from "bun:test";
+import { mkdirSync, rmSync } from "fs";
 import { NsError, createSilentContext, runPrepare } from "../../core";
 import type { NsContext, NsProgressEvent, NsQuestion, PrepareDeps, PrepareInput } from "../../core";
 import { createMockWorkspaceEnv, createShellResult } from "../setup";
 import { join } from "path";
-import { STATE_DIR } from "../../lib/config";
+import { STATE_DIR, WORKTREES_DIR } from "../../lib/config";
 
 type WorkspaceEnv = Awaited<ReturnType<PrepareDeps["readEnv"]>>;
 
@@ -198,6 +199,166 @@ describe("runPrepare", () => {
       "prepare:deps:frontend:done",
     ]);
     expect(events[0]?.label).toBe("Iniciando PostgreSQL...");
+  });
+
+  describe("reaproveitando as dependências da master", () => {
+    const fromMaster = (path: string) => path.includes("/worktrees/master/");
+    const worktrees = ["feat-123", "master"].flatMap((branch) =>
+      ["frontend", "manager", "report-server"].map((repo) => join(WORKTREES_DIR, branch, repo)));
+
+    beforeAll(() => worktrees.forEach((dir) => mkdirSync(dir, { recursive: true })));
+    afterAll(() => worktrees.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+    const commands = (run: ReturnType<typeof mock>) =>
+      (run.mock.calls as [string[]][]).map(([command]) => command.join(" ").replace(/\S*\/worktrees\//g, ""));
+
+    test("clona o node_modules da master e para ali quando bate com o declarado", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const asked: NsQuestion[] = [];
+      const result = await runPrepare(input({ withReportServer: false }), answering(false, asked), createDeps({
+        run,
+        depsPresent: mock(fromMaster),
+        installedMatchesLockfile: mock(() => true),
+      }));
+
+      expect(asked).toEqual([]);
+      expect(commands(run)).toEqual([
+        "rm -rf feat-123/frontend/node_modules.ns-reuse",
+        "cp -cR master/frontend/node_modules feat-123/frontend/node_modules.ns-reuse",
+        "touch feat-123/frontend/node_modules.ns-reuse/.ns-from-master",
+        "mv feat-123/frontend/node_modules.ns-reuse feat-123/frontend/node_modules",
+        "rm -rf feat-123/manager/node_modules.ns-reuse",
+        "cp -cR master/manager/node_modules feat-123/manager/node_modules.ns-reuse",
+        "touch feat-123/manager/node_modules.ns-reuse/.ns-from-master",
+        "mv feat-123/manager/node_modules.ns-reuse feat-123/manager/node_modules",
+      ]);
+      expect(result.depsReused).toEqual(["frontend", "manager"]);
+      expect(result.depsInstalled).toEqual([]);
+      expect(result.depsMissing).toEqual([]);
+    });
+
+    test("com divergência, always instala só as diferenças sem perguntar", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const asked: NsQuestion[] = [];
+      const result = await runPrepare(input({ withManager: false }), answering(false, asked), createDeps({
+        run,
+        depsPresent: mock(fromMaster),
+        installedMatchesLockfile: mock(() => false),
+      }));
+
+      expect(asked).toEqual([]);
+      expect(commands(run).filter((command) => command.endsWith("install"))).toEqual(["npm install", "bun install"]);
+      expect(result.depsReused).toEqual(["frontend", "report-server"]);
+      expect(result.depsInstalled).toEqual(["frontend", "report-server"]);
+    });
+
+    test("com divergência, ask pergunta se instala as diferenças", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const asked: NsQuestion[] = [];
+      const result = await runPrepare(
+        input({ installMissingDeps: "ask", withManager: false, withReportServer: false }),
+        answering(false, asked),
+        createDeps({ run, depsPresent: mock(fromMaster), installedMatchesLockfile: mock(() => false) }),
+      );
+
+      expect(asked).toEqual([{
+        id: "prepare.update-reused-deps.frontend",
+        message: "As dependências do frontend diferem da master. Instalar as diferenças agora?",
+        default: true,
+        whenUnavailable: "default",
+      }]);
+      expect(commands(run).some((command) => command.includes("install"))).toBe(false);
+      expect(result.depsReused).toEqual(["frontend"]);
+      expect(result.depsMissing).toEqual([
+        expect.objectContaining({ id: "frontend", command: "npm install", reason: "divergente" }),
+      ]);
+    });
+
+    test("com divergência, never fica com as da master e avisa", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const result = await runPrepare(
+        input({ installMissingDeps: "never", withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock(fromMaster), installedMatchesLockfile: mock(() => false) }),
+      );
+
+      expect(result.depsReused).toEqual(["frontend"]);
+      expect(result.depsMissing).toEqual([expect.objectContaining({ id: "frontend", reason: "divergente" })]);
+    });
+
+    test("falha ao instalar as diferenças fica em depsMissing", async () => {
+      const run = mock((command: string[]) =>
+        Promise.resolve(createShellResult(command, { exitCode: command[1] === "install" ? 1 : 0 })));
+      const result = await runPrepare(
+        input({ withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock(fromMaster), installedMatchesLockfile: mock(() => false) }),
+      );
+
+      expect(result.depsMissing).toEqual([expect.objectContaining({ id: "frontend", command: "npm install", reason: "falhou" })]);
+    });
+
+    test("clone que falha limpa a pasta temporária e instala do zero", async () => {
+      const run = mock((command: string[]) =>
+        Promise.resolve(createShellResult(command, { exitCode: command[0] === "cp" ? 1 : 0 })));
+      const result = await runPrepare(
+        input({ withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock(fromMaster) }),
+      );
+
+      expect(commands(run)).toEqual([
+        "rm -rf feat-123/frontend/node_modules.ns-reuse",
+        "cp -cR master/frontend/node_modules feat-123/frontend/node_modules.ns-reuse",
+        "rm -rf feat-123/frontend/node_modules.ns-reuse",
+        "npm ci",
+      ]);
+      expect(result.depsReused).toEqual([]);
+      expect(result.depsInstalled).toEqual(["frontend"]);
+    });
+
+    test("sem node_modules na master instala do zero", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const result = await runPrepare(input(), createSilentContext(), createDeps({ run, depsPresent: mock(() => false) }));
+
+      expect(commands(run)).toEqual(["npm ci", "npm ci", "bun install"]);
+      expect(result.depsReused).toEqual([]);
+    });
+
+    test("preparando a própria master instala do zero", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const result = await runPrepare(
+        input({ branch: "master", withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock((path: string) => fromMaster(path) && !path.endsWith("node_modules/.bin/vite")) }),
+      );
+
+      expect(commands(run)).toEqual(["npm ci"]);
+      expect(result.depsReused).toEqual([]);
+    });
+
+    test("Repo sem worktree na branch não recebe o clone no Repo base", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const result = await runPrepare(
+        input({ branch: "sem-worktree", withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock(fromMaster) }),
+      );
+
+      expect(commands(run)).toEqual(["npm ci"]);
+      expect(result.depsReused).toEqual([]);
+    });
+
+    test("node_modules incompleto na branch não é tocado pelo reaproveitamento", async () => {
+      const run = mock((command: string[]) => Promise.resolve(createShellResult(command)));
+      const result = await runPrepare(
+        input({ withManager: false, withReportServer: false }),
+        createSilentContext(),
+        createDeps({ run, depsPresent: mock((path: string) => fromMaster(path) || path.endsWith("frontend/node_modules")) }),
+      );
+
+      expect(commands(run)).toEqual(["npm ci"]);
+      expect(result.depsReused).toEqual([]);
+    });
   });
 
   test("falha do Docker ao subir o banco vira erro ferramenta-externa com a mensagem original", async () => {

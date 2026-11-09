@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join, relative } from "path";
 import {
   BACKEND_CORE_MODULE,
   PORTLESS_PROXY_PORT,
@@ -12,10 +12,12 @@ import {
   resolveServiceLogFile,
   resolveServiceSession,
   type SERVICE_IDS,
+  WORKTREES_DIR,
 } from "../../lib/config";
+import { type PackageManager, installedMatchesLockfile as defaultInstalledMatchesLockfile } from "../../lib/deps";
 import { pathExists } from "../../lib/filesystem";
 import { ensureManagementPort as defaultEnsureManagementPort } from "../../lib/ports";
-import { exec } from "../../lib/shell";
+import { type ShellResult, exec } from "../../lib/shell";
 import {
   type BranchRuntime,
   type BranchSetupDeps,
@@ -46,12 +48,12 @@ export interface ServicePlan {
   logFile: string;                      // saída gravada da execução atual
 }
 
-/** Dependências que continuam faltando ao fim da operação. */
+/** Dependências que continuam faltando, ou diferentes do declarado, ao fim da operação. */
 export interface MissingDep {
   id: ServiceId;
   cwd: string;
   command: string;                      // o que rodar à mão, ex.: "npm install"
-  reason: "recusado" | "falhou";
+  reason: "recusado" | "falhou" | "divergente";   // divergente: ficou com as da master
 }
 
 export interface PrepareResult {
@@ -60,6 +62,7 @@ export interface PrepareResult {
   urls: { backend: string; frontend: string; manager?: string; reportServer?: string };
   services: ServicePlan[];
   depsInstalled: ServiceId[];
+  depsReused: ServiceId[];              // vieram da master
   depsMissing: MissingDep[];
 }
 
@@ -69,6 +72,7 @@ export interface PrepareDeps extends BranchSetupDeps {
   hasReportServer: typeof defaultHasReportServer;
   ensureManagementPort: typeof defaultEnsureManagementPort;
   depsPresent: (marker: string) => boolean;
+  installedMatchesLockfile: typeof defaultInstalledMatchesLockfile;
 }
 
 const SETUP_LABELS: Record<BranchSetupStep, string> = {
@@ -78,12 +82,32 @@ const SETUP_LABELS: Record<BranchSetupStep, string> = {
   "portless:aliases": "Registrando aliases Portless...",
 };
 
-interface DepsSpec {
+export interface DepsSpec {
   id: ServiceId;
   cwd: string;
   marker: string;               // caminho que só existe com as dependências instaladas
   install: string[];
   fallback?: string[];          // roda só se `install` lançar; também é o comando sugerido à mão
+  packageManager: PackageManager;
+}
+
+/**
+ * A Branch de workspace de onde as dependências são reaproveitadas. É a pasta da
+ * worktree `master`, não a Branch principal (`@default`) de cada Repo.
+ */
+const DEPS_SOURCE_BRANCH = "master";
+
+/** Arquivo que o reaproveitamento deixa no `node_modules`, para dizer depois que ele veio da master. */
+const REUSED_MARKER = ".ns-from-master";
+
+/** Onde o reaproveitamento deixa a marca de `REUSED_MARKER` no Repo da branch. */
+export function reusedMarker(cwd: string): string {
+  return join(cwd, "node_modules", REUSED_MARKER);
+}
+
+/** O `install` do gerenciador: sobre um `node_modules` existente, instala só as diferenças. */
+export function updateCommand(spec: DepsSpec): string[] {
+  return [spec.packageManager, "install"];
 }
 
 /**
@@ -102,6 +126,7 @@ export async function runPrepare(
     hasReportServer = defaultHasReportServer,
     ensureManagementPort = defaultEnsureManagementPort,
     depsPresent = pathExists,
+    installedMatchesLockfile = defaultInstalledMatchesLockfile,
     ...setupDeps
   } = deps;
   const { branch } = input;
@@ -125,11 +150,25 @@ export async function runPrepare(
 
   ctx.emit({ step: "prepare:deps", label: "Verificando dependências..." });
   const depsInstalled: ServiceId[] = [];
+  const depsReused: ServiceId[] = [];
   const depsMissing: MissingDep[] = [];
   for (const spec of depsSpecs(branch, includeManager, includeReportServer)) {
     if (depsPresent(spec.marker)) continue;
 
-    const install = await shouldInstall(spec.id, input.installMissingDeps, ctx);
+    if (branch !== DEPS_SOURCE_BRANCH && await reuseDeps(branch, spec, run, depsPresent, ctx)) {
+      depsReused.push(spec.id);
+      if (installedMatchesLockfile(spec.cwd, spec.packageManager)) continue;
+
+      const outcome = await installDifferences(spec, input.installMissingDeps, run, ctx);
+      if (outcome === "instaladas") depsInstalled.push(spec.id);
+      else depsMissing.push(outcome);
+      continue;
+    }
+
+    const install = await shouldInstall(input.installMissingDeps, ctx, {
+      id: `prepare.install-deps.${spec.id}`,
+      message: `node_modules do ${spec.id} não encontrado. Instalar dependências agora?`,
+    });
     const command = (spec.fallback ?? spec.install).join(" ");
     if (!install) {
       depsMissing.push({ id: spec.id, cwd: spec.cwd, command, reason: "recusado" });
@@ -157,6 +196,7 @@ export async function runPrepare(
     urls: runtime.urls,
     services: buildServicePlan(branch, runtime, managementPort, includeManager, includeReportServer),
     depsInstalled,
+    depsReused,
     depsMissing,
   };
 }
@@ -174,8 +214,8 @@ export function servicesToStart(result: PrepareResult, service?: ServiceId): Ser
   return planned;
 }
 
-function depsSpecs(branch: string, includeManager: boolean, includeReportServer: boolean): DepsSpec[] {
-  const npm = { install: ["npm", "ci"], fallback: ["npm", "install"] };
+export function depsSpecs(branch: string, includeManager: boolean, includeReportServer: boolean): DepsSpec[] {
+  const npm = { install: ["npm", "ci"], fallback: ["npm", "install"], packageManager: "npm" as const };
   const frontendDir = resolveFrontendDir(branch);
   const specs: DepsSpec[] = [
     { id: "frontend", cwd: frontendDir, marker: join(frontendDir, "node_modules/.bin/vite"), ...npm },
@@ -191,34 +231,110 @@ function depsSpecs(branch: string, includeManager: boolean, includeReportServer:
       cwd: reportServerDir,
       marker: join(reportServerDir, "node_modules"),
       install: ["bun", "install"],
+      packageManager: "bun",
     });
   }
   return specs;
 }
 
 async function shouldInstall(
-  id: ServiceId,
   policy: PrepareInput["installMissingDeps"],
   ctx: NsContext,
+  question: { id: string; message: string },
 ): Promise<boolean> {
   if (policy === "always") return true;
   if (policy === "never") return false;
-  return ctx.ask({
-    id: `prepare.install-deps.${id}`,
-    message: `node_modules do ${id} não encontrado. Instalar dependências agora?`,
-    default: true,
-    whenUnavailable: "default",
+  return ctx.ask({ ...question, default: true, whenUnavailable: "default" });
+}
+
+/**
+ * Clona o `node_modules` do Repo na master para a branch. A pasta é a da worktree da
+ * master, nunca a do Repo base, que é para onde os `resolve*Dir` caem sem worktree;
+ * pelo mesmo motivo, o destino tem de ser a worktree da própria branch. O clone do
+ * APFS só ocupa espaço quando um arquivo muda. Reaproveita só se a branch não tem
+ * `node_modules` nenhum, para nunca mexer numa instalação existente. Copia para uma
+ * pasta temporária, marca com `REUSED_MARKER` e renomeia, para uma falha não deixar
+ * meio `node_modules` para trás.
+ */
+async function reuseDeps(
+  branch: string,
+  target: DepsSpec,
+  run: typeof exec,
+  depsPresent: PrepareDeps["depsPresent"],
+  ctx: NsContext,
+): Promise<boolean> {
+  const sourceDir = join(WORKTREES_DIR, DEPS_SOURCE_BRANCH, target.id);
+  if (target.cwd !== join(WORKTREES_DIR, branch, target.id)) return false;
+  const from = join(sourceDir, "node_modules");
+  const to = join(target.cwd, "node_modules");
+  if (!depsPresent(join(sourceDir, relative(target.cwd, target.marker))) || depsPresent(to)) return false;
+
+  ctx.emit({ step: `prepare:deps:${target.id}:reuse`, label: `Reaproveitando as dependências do ${target.id} da master...` });
+  const staging = `${to}.ns-reuse`;
+  const steps = [
+    ["rm", "-rf", staging],
+    ["cp", "-cR", from, staging],
+    ["touch", join(staging, REUSED_MARKER)],
+    ["mv", staging, to],
+  ];
+  for (const command of steps) {
+    if (!await succeeds(run, command)) {
+      await succeeds(run, ["rm", "-rf", staging]);
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Instala o que o lockfile da branch declara por cima do `node_modules` vindo da master,
+ * se a política deixar. Recusado, a branch fica com as dependências da master.
+ */
+async function installDifferences(
+  spec: DepsSpec,
+  policy: PrepareInput["installMissingDeps"],
+  run: typeof exec,
+  ctx: NsContext,
+): Promise<"instaladas" | MissingDep> {
+  const update = updateCommand(spec);
+  const missing = (reason: MissingDep["reason"]): MissingDep =>
+    ({ id: spec.id, cwd: spec.cwd, command: update.join(" "), reason });
+
+  const install = await shouldInstall(policy, ctx, {
+    id: `prepare.update-reused-deps.${spec.id}`,
+    message: `As dependências do ${spec.id} diferem da master. Instalar as diferenças agora?`,
   });
+  if (!install) return missing("divergente");
+
+  ctx.emit({ step: `prepare:deps:${spec.id}`, label: `Instalando as diferenças do ${spec.id}...` });
+  if (!await succeeds(run, update, spec.cwd)) return missing("falhou");
+  ctx.emit({ step: `prepare:deps:${spec.id}:done`, label: `Dependências do ${spec.id} instaladas` });
+  return "instaladas";
+}
+
+/** Roda o comando e diz se saiu com 0; um comando que nem roda conta como falha. */
+async function succeeds(run: typeof exec, command: string[], cwd?: string): Promise<boolean> {
+  return run(command, { cwd, silent: true }).then(({ exitCode }) => exitCode === 0, () => false);
 }
 
 async function installDeps(spec: DepsSpec, run: typeof exec): Promise<boolean> {
-  const attempt = async (command: string[]) =>
-    (await run(command, { cwd: spec.cwd, silent: true })).exitCode === 0;
+  return installFresh(spec, run).then((failed) => !failed, () => false);
+}
+
+/**
+ * Instala do zero: `install` e, se ele nem rodar, `fallback`. Devolve o resultado do
+ * comando que saiu com erro, ou nada se instalou; um comando que nem roda lança.
+ */
+export async function installFresh(spec: DepsSpec, run: typeof exec): Promise<ShellResult | undefined> {
+  const attempt = async (command: string[]) => {
+    const result = await run(command, { cwd: spec.cwd, silent: true });
+    return result.exitCode === 0 ? undefined : result;
+  };
   try {
     return await attempt(spec.install);
-  } catch {
-    if (!spec.fallback) return false;
-    return attempt(spec.fallback).catch(() => false);
+  } catch (error) {
+    if (!spec.fallback) throw error;
+    return attempt(spec.fallback);
   }
 }
 
