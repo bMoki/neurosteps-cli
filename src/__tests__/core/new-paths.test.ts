@@ -9,6 +9,7 @@ const prepared = {
   urls: { backend: "", frontend: "" },
   services: [],
   depsInstalled: [],
+  depsReused: [],
   depsMissing: [],
 };
 

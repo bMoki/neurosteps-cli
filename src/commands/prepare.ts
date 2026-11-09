@@ -56,6 +56,9 @@ export async function runPrepareInTerminal(
 export function warnMissingDeps(result: PrepareResult): void {
   for (const missing of result.depsMissing) {
     if (missing.reason === "falhou") warn(`Falha ao instalar dependências do ${missing.id}`);
+    if (missing.reason === "divergente") {
+      warn(`As dependências do ${missing.id} são as da master e diferem das da branch; ela pode não funcionar`);
+    }
     warn(`Rode manualmente: ${missing.command} em ${missing.cwd}`);
   }
 }

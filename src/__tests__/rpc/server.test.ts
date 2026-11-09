@@ -28,6 +28,7 @@ const PREPARED: PrepareResult = {
   urls: { backend: "https://feat.api", frontend: "https://feat.web" },
   services: [],
   depsInstalled: [],
+  depsReused: [],
   depsMissing: [],
 };
 

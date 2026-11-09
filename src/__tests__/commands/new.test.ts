@@ -10,6 +10,7 @@ const prepared = {
   urls: { backend: "https://feat-123.api", frontend: "https://feat-123.web" },
   services: [],
   depsInstalled: [],
+  depsReused: [],
   depsMissing: [],
 };
 
