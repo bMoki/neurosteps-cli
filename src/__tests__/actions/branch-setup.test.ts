@@ -1,6 +1,7 @@
 import { describe, test, expect, mock } from "bun:test";
 import {
   BranchNotFoundError,
+  buildBranchUrls,
   setupBranchRuntime,
   type BranchSetupDeps,
   type BranchSetupStep,
@@ -105,5 +106,18 @@ describe("setupBranchRuntime", () => {
     await expect(setupBranchRuntime("missing", {}, deps)).rejects.toThrow(BranchNotFoundError);
     expect(deps.composeUp).not.toHaveBeenCalled();
     expect(deps.regAlias).not.toHaveBeenCalled();
+  });
+});
+
+describe("buildBranchUrls", () => {
+  test("usa a porta do proxy que recebe em todas as URLs", () => {
+    const urls = buildBranchUrls({ backend: "b.api.x", frontend: "b.web.x", manager: "b.manager.x" }, 2468);
+
+    expect(urls).toEqual({
+      backend: "https://b.api.x.localhost:2468/api",
+      frontend: "https://b.web.x.localhost:2468",
+      manager: "https://b.manager.x.localhost:2468",
+      reportServer: undefined,
+    });
   });
 });

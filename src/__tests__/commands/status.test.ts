@@ -12,7 +12,7 @@ import {
   toStatusJsonError,
 } from "../../commands/status";
 import { type BranchStatus, naoEncontrado } from "../../core";
-import { PRODUCT_NAME } from "../../lib/config";
+import { PORTLESS_PROXY_PORT, PRODUCT_NAME } from "../../lib/config";
 
 function row(overrides: Partial<CompactStatusRow>): CompactStatusRow {
   return {
@@ -36,6 +36,10 @@ function status(overrides: Partial<BranchStatus> = {}): BranchStatus {
     ports: { db: 5438, backend: 8084, frontend: 3015 },
     services: { db: "rodando", backend: "rodando", frontend: "parado", manager: null, reportServer: null },
     aliases: { backend: `feat-123.api.${PRODUCT_NAME}`, frontend: `feat-123.web.${PRODUCT_NAME}` },
+    urls: {
+      backend: `https://feat-123.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/api`,
+      frontend: `https://feat-123.web.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`,
+    },
     sessions: { backend: "ns-feat-123-backend", frontend: "ns-feat-123-frontend" },
     errors: {},
     repos: [],

@@ -5,7 +5,7 @@ import type { StatusDeps } from "../../core/operations/status";
 import type { BranchFlagInfo } from "../../lib/branch-flags";
 import { mkdirSync, rmSync, writeFileSync } from "fs";
 import { join } from "path";
-import { PRODUCT_NAME, WORKTREES_DIR } from "../../lib/config";
+import { PORTLESS_PROXY_PORT, PRODUCT_NAME, WORKTREES_DIR } from "../../lib/config";
 import {
   TEST_BACKEND_PORT,
   TEST_DB_CONTAINER,
@@ -63,6 +63,12 @@ describe("runStatus", () => {
     expect(status.aliases.backend).toBe(`feat-123.api.${PRODUCT_NAME}`);
     expect(status.aliases.frontend).toBe(`feat-123.web.${PRODUCT_NAME}`);
     expect(status.aliases.reportServer).toBeUndefined();
+    expect(status.urls).toEqual({
+      backend: `https://feat-123.api.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}/api`,
+      frontend: `https://feat-123.web.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`,
+      manager: `https://feat-123.manager.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`,
+      reportServer: undefined,
+    });
   });
 
   test("informa a sessão de cada Serviço e, de quem Falhou, a linha do erro", async () => {
@@ -169,6 +175,17 @@ describe("runStatus", () => {
     expect(result.branches[0]!.services.manager).toBeNull();
     expect(result.branches[0]!.services.reportServer).toBeNull();
     expect(result.branches[0]!.aliases.manager).toBeUndefined();
+    expect(result.branches[0]!.urls.manager).toBeUndefined();
+    expect(result.branches[0]!.urls.reportServer).toBeUndefined();
+  });
+
+  test("dá a URL do report-server quando a branch o tem", async () => {
+    const result = await runStatus({ branch: "feat-123" }, createSilentContext(), createDeps({
+      readWorkspaceEnv: mock(() => Promise.resolve(createMockWorkspaceEnv({ REPORT_SERVER_PORT: 4010 }) as WorkspaceEnv)),
+    }));
+
+    expect(result.branches[0]!.urls.reportServer)
+      .toBe(`https://feat-123.report-server.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
   });
 
   test("usa o nome da branch em minúsculas quando não há slug", async () => {
@@ -178,6 +195,8 @@ describe("runStatus", () => {
 
     expect(result.branches[0]!.slug).toBe("ns-1250");
     expect(result.branches[0]!.aliases.backend).toBe(`ns-1250.api.${PRODUCT_NAME}`);
+    expect(result.branches[0]!.urls.frontend)
+      .toBe(`https://ns-1250.web.${PRODUCT_NAME}.localhost:${PORTLESS_PROXY_PORT}`);
   });
 
   test("lê todas as branches quando não recebe nome", async () => {

@@ -135,7 +135,7 @@ export async function setupBranchRuntime(
   };
 }
 
-function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchRuntime["aliases"] {
+export function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchRuntime["aliases"] {
   return {
     backend: `${aliasSlug}.api.${PRODUCT_NAME}`,
     frontend: `${aliasSlug}.web.${PRODUCT_NAME}`,
@@ -144,11 +144,14 @@ function buildPortlessAliases(aliasSlug: string, env: WorkspaceEnv): BranchRunti
   };
 }
 
-function buildBranchUrls(aliases: BranchRuntime["aliases"]): BranchRuntime["urls"] {
+export function buildBranchUrls(
+  aliases: BranchRuntime["aliases"],
+  proxyPort: number = PORTLESS_PROXY_PORT,
+): BranchRuntime["urls"] {
   return {
-    backend: `https://${aliases.backend}.localhost:${PORTLESS_PROXY_PORT}/api`,
-    frontend: `https://${aliases.frontend}.localhost:${PORTLESS_PROXY_PORT}`,
-    manager: aliases.manager ? `https://${aliases.manager}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
-    reportServer: aliases.reportServer ? `https://${aliases.reportServer}.localhost:${PORTLESS_PROXY_PORT}` : undefined,
+    backend: `https://${aliases.backend}.localhost:${proxyPort}/api`,
+    frontend: `https://${aliases.frontend}.localhost:${proxyPort}`,
+    manager: aliases.manager ? `https://${aliases.manager}.localhost:${proxyPort}` : undefined,
+    reportServer: aliases.reportServer ? `https://${aliases.reportServer}.localhost:${proxyPort}` : undefined,
   };
 }
