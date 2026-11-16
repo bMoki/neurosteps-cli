@@ -6,7 +6,6 @@ import {
   FRONTEND_REPO,
   MANAGER_REPO,
   PARENTS_REPO,
-  PRODUCT_NAME,
   REPORT_SERVER_REPO,
   WORKTREES_DIR,
   listBranches as defaultListBranches,
@@ -15,6 +14,7 @@ import {
   resolveServiceSession,
   type WorkspaceEnv,
 } from "../../lib/config";
+import { type BranchRuntime, buildBranchUrls, buildPortlessAliases } from "../../actions/branch-setup";
 import { pathExists } from "../../lib/filesystem";
 import { readCheckedOutBranch } from "../../lib/git";
 import { listRunningContainers as defaultListRunningContainers } from "../../lib/docker";
@@ -67,6 +67,7 @@ export interface BranchStatus {
     backend: string; frontend: string;
     manager?: string; reportServer?: string;
   };
+  urls: BranchRuntime["urls"];        // endereço Portless completo de cada serviço; o backend leva /api
   sessions: {                         // nome da sessão tmux de cada Serviço; a sessão só existe depois de Iniciar
     backend: string; frontend: string;
     manager?: string; reportServer?: string;
@@ -172,10 +173,7 @@ export async function runStatus(
 
   const branches = await Promise.all(found.map(async ({ branch, env }): Promise<BranchStatus> => {
     const slug = env.BRANCH_SLUG || branch.toLowerCase();
-    const backendAlias = `${slug}.api.${PRODUCT_NAME}`;
-    const frontendAlias = `${slug}.web.${PRODUCT_NAME}`;
-    const managerAlias = `${slug}.manager.${PRODUCT_NAME}`;
-    const reportServerAlias = `${slug}.report-server.${PRODUCT_NAME}`;
+    const aliases = buildPortlessAliases(slug, env);
     const flags = flagsByBranch.get(branch) ?? EMPTY_FLAGS;
     const stateOf = (id: string, port: number) =>
       deriveServiceState(listening.has(port), panes.get(resolveServiceSession(slug, id)));
@@ -208,12 +206,8 @@ export async function runStatus(
         reportServer: env.REPORT_SERVER_PORT,
       },
       services,
-      aliases: {
-        backend: backendAlias,
-        frontend: frontendAlias,
-        manager: env.MANAGER_PORT ? managerAlias : undefined,
-        reportServer: env.REPORT_SERVER_PORT ? reportServerAlias : undefined,
-      },
+      aliases,
+      urls: buildBranchUrls(aliases),
       sessions: {
         backend: resolveServiceSession(slug, "backend"),
         frontend: resolveServiceSession(slug, "frontend"),

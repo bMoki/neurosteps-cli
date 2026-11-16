@@ -32,6 +32,10 @@ export interface BranchStatus {
     backend: string; frontend: string;
     manager?: string; reportServer?: string;
   };
+  urls: {                             // endereço Portless completo de cada serviço; o backend leva /api
+    backend: string; frontend: string;
+    manager?: string; reportServer?: string;
+  };
   flags: string[];
   stale: boolean;
   lastCommitAt: string | null;
